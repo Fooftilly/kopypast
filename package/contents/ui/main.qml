@@ -228,6 +228,14 @@ PlasmoidItem {
                             }
                         }
 
+                        Kirigami.Icon {
+                            visible: modelData.favorite
+                            source: "rating"
+                            Layout.preferredWidth: Kirigami.Units.iconSizes.small
+                            Layout.preferredHeight: Kirigami.Units.iconSizes.small
+                            Accessible.name: i18n("Favorite")
+                        }
+
                         Rectangle {
                             Layout.alignment: Qt.AlignVCenter
                             Layout.rightMargin: Kirigami.Units.smallSpacing

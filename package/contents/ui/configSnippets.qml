@@ -153,6 +153,18 @@ SimpleKCM {
                                     Layout.rightMargin: Kirigami.Units.smallSpacing
 
                                     ToolButton {
+                                        icon.name: modelData.favorite ? "rating" : "rating-unrated"
+                                        display: ToolButton.IconOnly
+                                        checkable: true
+                                        checked: modelData.favorite
+                                        onClicked: snippetModel.setFavorite(modelData.id, !modelData.favorite)
+                                        Accessible.name: modelData.favorite ? i18n("Remove from favorites") : i18n("Add to favorites")
+                                        ToolTip.text: Accessible.name
+                                        ToolTip.visible: hovered
+                                        ToolTip.delay: Kirigami.Units.toolTipDelay
+                                    }
+
+                                    ToolButton {
                                         icon.name: "document-edit"
                                         display: ToolButton.IconOnly
                                         onClicked: snippetDialog.editSnippet(index)
