@@ -397,7 +397,7 @@ Item {
         })
     }
 
-    function restoreBackup(content, maxSnippets) {
+    function restoreBackup(content, maxSnippets, preserveIdentity = false) {
         if (!configurationValid)
             return { status: "invalid-config" }
         var data
@@ -416,19 +416,46 @@ Item {
         if (normalized === null)
             return { status: "invalid-record" }
 
-        var seen = new Set(snippets.map(function(entry) {
-            return JSON.stringify([entry.title, entry.text])
-        }))
         var accepted = []
         var duplicates = 0
-        for (var j = 0; j < normalized.length; j++) {
-            var snippet = normalized[j]
-            var key = JSON.stringify([snippet.title, snippet.text])
-            if (seen.has(key)) {
+        if (preserveIdentity) {
+            // Versioned exports contain a stable ID for every record. Equal
+            // content does not imply equal identity. Validate all IDs before
+            // applying any part of a backup.
+            var existingById = new Map(snippets.map(function(entry) { return [entry.id, entry] }))
+            var incomingIds = new Set()
+            for (var j = 0; j < normalized.length; j++) {
+                var record = normalized[j]
+                if (!record.id || incomingIds.has(record.id))
+                    return { status: "invalid-record" }
+                incomingIds.add(record.id)
+                var existing = existingById.get(record.id)
+                if (!existing) {
+                    accepted.push(record)
+                    continue
+                }
+                // Never overwrite or silently discard an edited record.
+                // Keep local usage, favorites and timestamps on repeat import.
+                if (existing.title !== record.title || existing.text !== record.text
+                        || existing.category !== record.category
+                        || JSON.stringify(existing.tags) !== JSON.stringify(record.tags))
+                    return { status: "id-conflict" }
                 duplicates++
-            } else {
-                seen.add(key)
-                accepted.push(snippet)
+            }
+        } else {
+            // Legacy clipboard imports identify duplicates by content.
+            var seen = new Set(snippets.map(function(entry) {
+                return JSON.stringify([entry.title, entry.text])
+            }))
+            for (var i = 0; i < normalized.length; i++) {
+                var snippet = normalized[i]
+                var key = JSON.stringify([snippet.title, snippet.text])
+                if (seen.has(key)) {
+                    duplicates++
+                } else {
+                    seen.add(key)
+                    accepted.push(snippet)
+                }
             }
         }
         if (accepted.length === 0)

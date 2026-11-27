@@ -71,7 +71,9 @@ Item {
             compare(copied.count, 0)
             editor.accept()
             tryCompare(copied, "count", 1)
-            compare(copied.signalArguments[0], ["a", expected])
+            compare(copied.signalArguments[0].length, 2)
+            compare(copied.signalArguments[0][0], "a")
+            compare(copied.signalArguments[0][1], expected)
             tryCompare(editor, "visible", false)
             tryCompare(editor, "snippetId", "")
             compare(editor.fieldNames, [])
@@ -98,7 +100,9 @@ Item {
             openTemplate("empty", "{{FIELD}}")
             editor.accept()
             tryCompare(copied, "count", 1)
-            compare(copied.signalArguments[0], ["empty", ""])
+            compare(copied.signalArguments[0].length, 2)
+            compare(copied.signalArguments[0][0], "empty")
+            compare(copied.signalArguments[0][1], "")
             tryCompare(editor, "visible", false)
             tryCompare(editor, "snippetId", "")
             copied.clear()
@@ -106,7 +110,9 @@ Item {
             editor.setValue("FIELD", "<b>{YEAR} {{OTHER}}</b>")
             editor.accept()
             tryCompare(copied, "count", 1)
-            compare(copied.signalArguments[0], ["literal", "<b>{YEAR} {{OTHER}}</b>"])
+            compare(copied.signalArguments[0].length, 2)
+            compare(copied.signalArguments[0][0], "literal")
+            compare(copied.signalArguments[0][1], "<b>{YEAR} {{OTHER}}</b>")
         }
     }
 }

@@ -34,7 +34,7 @@ If several instances are installed, assign a different shortcut to each instance
 
 Use `{ISO_DATE}` or other built-in date/time variables to insert the current value. Use a named field such as `{{PROJECT}}` or `{{PR_NUMBER}}` to ask for text before copying. Each distinct uppercase field appears once, even if used several times in a snippet. The preview uses one date/time snapshot; the copied text is the accepted preview. Values are not saved in the snippet. Cancel to leave the clipboard unchanged.
 
-Prefix a recognized variable or field with a backslash (for example, `\\{{PROJECT}}`) to copy it literally. Disable variable handling in General settings to copy templates unchanged.
+Prefix a recognized variable or field with a backslash (for example, `\{{PROJECT}}`) to copy it literally. Disable variable handling in General settings to copy templates unchanged.
 
 ## Contributing
 

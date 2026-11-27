@@ -68,7 +68,7 @@ Dialog {
             return
         }
 
-        var result = snippetModel.restoreBackup(decoded.content, plasmoid.configuration.maxSnippets)
+        var result = snippetModel.restoreBackup(decoded.content, plasmoid.configuration.maxSnippets, decoded.preserveIdentity)
         switch (result.status) {
         case "invalid-config":
             showNotification(i18n("Invalid snippet configuration"))
@@ -78,6 +78,9 @@ Dialog {
             break
         case "invalid-record":
             showNotification(i18n("Invalid snippet format"))
+            break
+        case "id-conflict":
+            showNotification(i18n("Backup conflicts with an existing snippet. No snippets were restored."))
             break
         case "empty":
             showNotification(i18n("Backup contains no snippets"))
