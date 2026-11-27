@@ -94,6 +94,7 @@ Dialog {
 
                     TextField {
                         id: field
+                        objectName: "templateField_" + modelData
                         Layout.fillWidth: true
                         Accessible.name: modelData
                         text: dialog.values[modelData] || ""
@@ -114,6 +115,7 @@ Dialog {
                 selectByMouse: true
                 textFormat: TextEdit.PlainText
                 wrapMode: TextEdit.Wrap
+                objectName: "resolvedTemplatePreview"
                 text: dialog.resolvedText
             }
         }
