@@ -19,6 +19,7 @@ PlasmoidItem {
     activationTogglesExpanded: true
 
     property bool isCopied: false
+    property bool localStorageLimitReached: false
     property string searchQuery: ""
     readonly property bool isPanel: plasmoid.formFactor === 2 || plasmoid.formFactor === 3
     readonly property var closeDelayValues: [0, 700, 1000, 1500]
@@ -26,6 +27,8 @@ PlasmoidItem {
 
     Local.SnippetModel {
         id: snippetModel
+        enforceLocalConfigBudget: true
+        onLocalConfigBudgetRejected: root.localStorageLimitReached = true
         Component.onCompleted: {
             loadFromConfig(plasmoid.configuration.snippets)
             if (plasmoid.configuration.sortMode === -1) {
@@ -33,7 +36,10 @@ PlasmoidItem {
                 plasmoid.configuration.sortByUsage = false
             }
         }
-        onConfigValueChanged: plasmoid.configuration.snippets = configValue
+        onConfigValueChanged: {
+            root.localStorageLimitReached = false
+            plasmoid.configuration.snippets = configValue
+        }
     }
 
     Local.SearchHighlighter {
@@ -266,6 +272,15 @@ PlasmoidItem {
 
         Keys.forwardTo: [snippetList]
         focus: !plasmoid.configuration.showSearchField || !searchField.enabled
+
+        Label {
+            Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.smallSpacing
+            visible: root.localStorageLimitReached
+            text: i18n("Change not saved: local snippet storage is too large. Reduce the data or back up the snippets.")
+            wrapMode: Text.WordWrap
+            color: Kirigami.Theme.negativeTextColor
+        }
 
         Kirigami.SearchField {
             id: searchField
