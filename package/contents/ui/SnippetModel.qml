@@ -29,6 +29,11 @@ Item {
         }
     }
 
+    function validTimestamp(value) {
+        return value === undefined || value === null
+            || (Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000000)
+    }
+
     function normalizeRecords(data) {
         if (!Array.isArray(data))
             return null
@@ -41,6 +46,7 @@ Item {
                         && (!Number.isSafeInteger(entry.usageCount) || entry.usageCount < 0))
                     || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")
                     || (entry.favorite !== undefined && typeof entry.favorite !== "boolean")
+                    || !validTimestamp(entry.createdAt) || !validTimestamp(entry.lastUsedAt)
                     || (entry.id !== undefined && (typeof entry.id !== "string" || entry.id.length === 0)))
                 return null
             records.push({
@@ -49,7 +55,9 @@ Item {
                 text: entry.text,
                 usageCount: entry.usageCount === undefined ? 0 : entry.usageCount,
                 isNew: entry.isNew === undefined ? false : entry.isNew,
-                favorite: entry.favorite === true
+                favorite: entry.favorite === true,
+                createdAt: entry.createdAt === undefined ? null : entry.createdAt,
+                lastUsedAt: entry.lastUsedAt === undefined ? null : entry.lastUsedAt
             })
         }
         return records
@@ -113,7 +121,9 @@ Item {
             text: item.text,
             usageCount: 0,
             isNew: true,
-            favorite: false
+            favorite: false,
+            createdAt: Date.now(),
+            lastUsedAt: null
         })
         updateModel(snippetsArray)
     }
@@ -185,10 +195,11 @@ Item {
     function incrementUsage(index) {
         var snippetsArray = snippets.slice()
         if (snippetsArray[index]) {
-            snippetsArray[index].usageCount = Math.min(Number.MAX_SAFE_INTEGER, (snippetsArray[index].usageCount || 0) + 1)
-            if (snippetsArray[index].isNew) {
-                snippetsArray[index].isNew = false
-            }
+            snippetsArray[index] = Object.assign({}, snippetsArray[index], {
+                usageCount: Math.min(Number.MAX_SAFE_INTEGER, snippetsArray[index].usageCount + 1),
+                isNew: false,
+                lastUsedAt: Date.now()
+            })
             updateModel(snippetsArray)
         }
     }
@@ -220,8 +231,10 @@ Item {
         return updateModel(updated)
     }
 
-    function getSortedSnippets(sortByUsage) {
-        // Partition by favorite without changing persisted manual order.
+    function getSortedSnippets(sortMode) {
+        // 0 manual, 1 usage, 2 recent use, 3 recently created, 4 alphabetical.
+        // Favorites remain first in every mode. Unknown dates sort last.
+        var mode = Number(sortMode)
         var favorites = []
         var others = []
         for (var i = 0; i < snippets.length; i++) {
@@ -232,18 +245,45 @@ Item {
                 others.push(record)
         }
 
-        if (sortByUsage) {
-            function compareUsage(a, b) {
-                return b.item.usageCount - a.item.usageCount || a.index - b.index
+        function compareDates(a, b) {
+            if (a === b)
+                return 0
+            if (a === null)
+                return 1
+            if (b === null)
+                return -1
+            return b - a
+        }
+
+        function compareRecords(a, b) {
+            var result = 0
+            switch (mode) {
+            case 1:
+                result = b.item.usageCount - a.item.usageCount
+                break
+            case 2:
+                result = compareDates(a.item.lastUsedAt, b.item.lastUsedAt)
+                break
+            case 3:
+                result = compareDates(a.item.createdAt, b.item.createdAt)
+                break
+            case 4:
+                result = a.item.title.normalize("NFC").toLocaleLowerCase().localeCompare(
+                    b.item.title.normalize("NFC").toLocaleLowerCase())
+                break
             }
-            favorites.sort(compareUsage)
-            others.sort(compareUsage)
+            return result || a.index - b.index
+        }
+
+        if (mode >= 1 && mode <= 4) {
+            favorites.sort(compareRecords)
+            others.sort(compareRecords)
         }
         return favorites.concat(others).map(function(record) { return record.item })
     }
 
-    function getFilteredSnippets(sortByUsage, query) {
-        var sorted = getSortedSnippets(sortByUsage)
+    function getFilteredSnippets(sortMode, query) {
+        var sorted = getSortedSnippets(sortMode)
         var search = query.trim().normalize("NFC").toLowerCase()
         if (!search)
             return sorted
