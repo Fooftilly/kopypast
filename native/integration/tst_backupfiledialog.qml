@@ -30,6 +30,64 @@ Item {
         when: windowShown
         // Use a unique local path under the test runner working directory.
         property url targetUrl: Qt.resolvedUrl("../../native-test-backup-" + Date.now() + ".json")
+        function cleanup() {
+            const confirmation = findChild(editor, "backupOverwriteDialog")
+            if (confirmation && confirmation.visible)
+                confirmation.reject()
+            if (editor.visible)
+                editor.close()
+            tryCompare(editor, "visible", false)
+            notices.clear()
+        }
+
+        function test_overwriteConfirmation() {
+            const url = Qt.resolvedUrl("../../native-test-backup-confirm-" + Date.now() + ".json")
+            compare(io.write(url, "original", false).status, "ok")
+            store.loadFromConfig('[{"id":"a","title":"Replacement","text":"body"}]')
+            editor.isBackup = true
+            editor.open()
+            tryCompare(editor, "opened", true)
+            const input = findChild(editor.contentItem, "backupText")
+            const confirmation = findChild(editor, "backupOverwriteDialog")
+            verify(input !== null && confirmation !== null)
+            const replacement = input.text
+            editor.writeBackupFile(url, replacement)
+            tryCompare(confirmation, "opened", true)
+            compare(io.read(url).text, "original")
+            confirmation.reject()
+            tryCompare(confirmation, "visible", false)
+            compare(io.read(url).text, "original")
+            compare(editor.pendingOverwriteText, "")
+            compare(notices.count, 0)
+
+            editor.writeBackupFile(url, replacement)
+            tryCompare(confirmation, "opened", true)
+            const yes = confirmation.standardButton(Dialog.Yes)
+            verify(yes !== null && yes.enabled)
+            mouseClick(yes)
+            tryCompare(confirmation, "visible", false)
+            compare(io.read(url).text, replacement)
+            tryCompare(notices, "count", 1)
+            compare(notices.signalArguments[0][0], "Backup file saved")
+            compare(editor.pendingOverwriteText, "")
+        }
+
+        function test_failedReadKeepsDraft() {
+            store.loadFromConfig("[]")
+            editor.isBackup = false
+            editor.open()
+            tryCompare(editor, "opened", true)
+            const input = findChild(editor.contentItem, "backupText")
+            verify(input !== null)
+            input.text = '[{"title":"Draft","text":"body"}]'
+            const draft = input.text
+            editor.readBackupFile("https://example.invalid/backup.json")
+            compare(input.text, draft)
+            compare(store.count, 0)
+            tryCompare(notices, "count", 1)
+            compare(notices.signalArguments[0][0], "Select a local regular file")
+        }
+
         function test_fileRoundTrip() {
             verify(editor.fileAccessAvailable)
             store.loadFromConfig('[{"id":"a","title":"Čaša","text":"  日本語\\n\\t<b>literal</b>"}]')

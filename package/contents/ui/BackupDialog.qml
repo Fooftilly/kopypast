@@ -197,6 +197,7 @@ Dialog {
 
     Dialog {
         id: overwriteDialog
+        objectName: "backupOverwriteDialog"
         parent: dialog.contentItem
         anchors.centerIn: parent
         width: Math.min(parent.width, Kirigami.Units.gridUnit * 24)
