@@ -29,33 +29,32 @@ Dialog {
         id: backupFormat
     }
     property bool isValid: !isBackup && textArea.text !== ""
-    property bool initializing: true
 
     function showNotification(message, timeout = 3000) {
         applicationWindow().showPassiveNotification(message, timeout)
     }
 
+    function updateAcceptButton() {
+        var button = standardButton(Dialog.Ok)
+        if (button)
+            button.enabled = isValid
+    }
+
+    onAboutToShow: {
+        // Take a fresh snapshot for every opening. A restore edit or clear
+        // must not break a binding needed by a later backup.
+        textArea.text = isBackup ? backupContent : ""
+        updateAcceptButton()
+    }
+
     onOpened: {
-        if (!isBackup) {
-            initializing = true
-            standardButton(Dialog.Ok).enabled = false
+        updateAcceptButton()
+        if (!isBackup)
             textArea.forceActiveFocus()
-        }
     }
 
-    onVisibleChanged: {
-        if (visible && !isBackup && initializing) {
-            standardButton(Dialog.Ok).enabled = false
-            initializing = false
-        }
-        if (!visible && !isBackup) {
-            textArea.clear()
-        }
-    }
-
-    onIsValidChanged: {
-        standardButton(Dialog.Ok).enabled = isValid
-    }
+    onClosed: textArea.clear()
+    onIsValidChanged: updateAcceptButton()
 
     onAccepted: {
         if (isBackup)
@@ -131,7 +130,8 @@ Dialog {
                 id: textArea
                 width: parent.width
                 readOnly: isBackup
-                text: isBackup ? backupContent : ""
+                objectName: "backupText"
+                text: ""
                 placeholderText: !isBackup ? i18n("Backup Contents") : ""
                 wrapMode: TextEdit.Wrap
                 textFormat: TextEdit.PlainText
