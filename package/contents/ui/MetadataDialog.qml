@@ -30,6 +30,7 @@ Dialog {
         spacing: Kirigami.Units.smallSpacing
         ComboBox {
             id: kindBox
+            objectName: "metadataKind"
             Layout.fillWidth: true
             model: [i18n("Categories"), i18n("Tags")]
             Accessible.name: i18n("Group type")
@@ -37,6 +38,7 @@ Dialog {
         }
         ComboBox {
             id: nameBox
+            objectName: "metadataName"
             Layout.fillWidth: true
             model: dialog.names
             Accessible.name: i18n("Existing group")
@@ -44,6 +46,7 @@ Dialog {
         }
         TextField {
             id: replacement
+            objectName: "metadataReplacement"
             Layout.fillWidth: true
             placeholderText: i18n("New name")
             Accessible.name: placeholderText
@@ -55,6 +58,7 @@ Dialog {
         }
         RowLayout {
             Button {
+                objectName: "renameMetadataButton"
                 text: i18n("Rename")
                 enabled: nameBox.currentIndex >= 0 && dialog.validName
                 onClicked: {
@@ -63,6 +67,7 @@ Dialog {
                 }
             }
             Button {
+                objectName: "removeMetadataButton"
                 text: i18n("Remove")
                 enabled: nameBox.currentIndex >= 0
                 onClicked: {
@@ -76,6 +81,7 @@ Dialog {
 
     Dialog {
         id: confirmRemoval
+        objectName: "confirmMetadataRemoval"
         property string groupKind: ""
         property string groupName: ""
         parent: dialog.contentItem
