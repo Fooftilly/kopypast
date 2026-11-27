@@ -109,6 +109,68 @@ Item {
         updateModel(snippetsArray)
     }
 
+    function restoreBackup(content, maxSnippets) {
+        var data
+        try {
+            data = JSON.parse(content)
+        } catch (error) {
+            return { status: "invalid-format" }
+        }
+        if (!Array.isArray(data))
+            return { status: "invalid-format" }
+        if (data.length === 0)
+            return { status: "empty" }
+
+        // Validate the entire backup before applying any changes.
+        var normalized = []
+        for (var i = 0; i < data.length; i++) {
+            var entry = data[i]
+            if (!entry || typeof entry.title !== "string" || entry.title.length === 0
+                    || typeof entry.text !== "string" || entry.text.length === 0
+                    || (entry.usageCount !== undefined
+                        && (!Number.isSafeInteger(entry.usageCount) || entry.usageCount < 0))
+                    || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")) {
+                return { status: "invalid-record" }
+            }
+            normalized.push({
+                title: entry.title,
+                text: entry.text,
+                usageCount: entry.usageCount === undefined ? 0 : entry.usageCount,
+                isNew: entry.isNew === undefined ? false : entry.isNew
+            })
+        }
+
+        var seen = new Set(snippets.map(function(entry) {
+            return JSON.stringify([entry.title, entry.text])
+        }))
+        var accepted = []
+        var duplicates = 0
+        for (var j = 0; j < normalized.length; j++) {
+            var snippet = normalized[j]
+            var key = JSON.stringify([snippet.title, snippet.text])
+            if (seen.has(key)) {
+                duplicates++
+            } else {
+                seen.add(key)
+                accepted.push(snippet)
+            }
+        }
+        if (accepted.length === 0)
+            return { status: "duplicates" }
+
+        var remaining = Math.max(0, maxSnippets - snippets.length)
+        if (remaining === 0)
+            return { status: "limit" }
+
+        var restored = accepted.slice(0, remaining)
+        updateModel(snippets.concat(restored))
+        return {
+            status: restored.length < accepted.length ? "partial" : "restored",
+            count: restored.length,
+            duplicates: duplicates
+        }
+    }
+
     function updateModel(newSnippets) {
         snippets = newSnippets
         configValue = JSON.stringify(newSnippets)
