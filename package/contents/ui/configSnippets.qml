@@ -89,6 +89,7 @@ SimpleKCM {
 
                 ListView {
                     id: snippetList
+                    objectName: "settingsSnippetList"
                     model: snippetModel.snippets
                     clip: true
 
