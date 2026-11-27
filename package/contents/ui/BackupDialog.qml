@@ -108,6 +108,9 @@ Dialog {
         case "id-conflict":
             showNotification(i18n("Backup conflicts with an existing snippet. No snippets were restored."))
             break
+        case "write-failed":
+            showNotification(i18n("Could not save restored snippets. No snippets were restored."))
+            break
         case "empty":
             showNotification(i18n("Backup contains no snippets"))
             break
