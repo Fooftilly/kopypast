@@ -100,17 +100,19 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Plasma and test dependencies
-        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth xdotool jq dbus
+        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth xdotool jq dbus
 
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Record Plasma versions
-        run: pacman -Q plasma-sdk plasma-workspace libplasma kirigami qt6-base qt6-declarative
+        run: pacman -Q plasma-sdk plasma-desktop plasma-workspace libplasma kirigami qt6-base qt6-declarative
 
       - name: Install and load widget, test clipboard
         env:
           QT_QPA_PLATFORM: xcb
           QT_QUICK_BACKEND: software
-        run: xvfb-run -a dbus-run-session -- bash integration/smoke.sh
+        run: |
+          test -f /usr/share/plasma/plasmoids/org.kde.desktopcontainment/metadata.json
+          xvfb-run -a dbus-run-session -- bash integration/smoke.sh
