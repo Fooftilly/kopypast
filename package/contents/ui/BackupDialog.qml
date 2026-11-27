@@ -21,7 +21,9 @@ Dialog {
     standardButtons: isBackup ? Dialog.Close : Dialog.Ok | Dialog.Cancel
 
     property bool isBackup: true
-    property string backupContent: JSON.stringify(snippetModel.snippets, null, 2)
+    property string backupContent: snippetModel.configurationValid
+        ? JSON.stringify(snippetModel.snippets, null, 2)
+        : snippetModel.configValue
     property bool isValid: !isBackup && textArea.text !== ""
     property bool initializing: true
 
@@ -57,6 +59,9 @@ Dialog {
 
         var result = snippetModel.restoreBackup(textArea.text, plasmoid.configuration.maxSnippets)
         switch (result.status) {
+        case "invalid-config":
+            showNotification(i18n("Invalid snippet configuration"))
+            break
         case "invalid-format":
             showNotification(i18n("Invalid backup format"))
             break
