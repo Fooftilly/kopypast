@@ -42,7 +42,7 @@ QVariantMap BackupFile::read(const QUrl &url) const
     if (bytes.size() > MaximumBytes || !file.atEnd())
         return result(QStringLiteral("too-large"));
 
-    QStringDecoder decoder(QStringDecoder::Utf8);
+    QStringDecoder decoder(QStringDecoder::Utf8, QStringConverter::Flag::Stateless);
     const QString text = decoder(bytes);
     if (decoder.hasError())
         return result(QStringLiteral("invalid-utf8"));
@@ -62,6 +62,8 @@ QVariantMap BackupFile::write(const QUrl &url, const QString &text, bool replace
         return result(QStringLiteral("exists"));
     if (text.size() > MaximumBytes)
         return result(QStringLiteral("too-large"));
+    if (!text.isValidUtf16())
+        return result(QStringLiteral("invalid-utf16"));
     const auto bytes = text.toUtf8();
     if (bytes.size() > MaximumBytes)
         return result(QStringLiteral("too-large"));

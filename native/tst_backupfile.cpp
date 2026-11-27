@@ -52,6 +52,12 @@ private slots:
         QCOMPARE(file.write(QByteArray::fromHex("fffeff")), 3);
         file.close();
         QCOMPARE(status(io.read(QUrl::fromLocalFile(path))), QStringLiteral("invalid-utf8"));
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QCOMPARE(file.write(QByteArray::fromHex("61e282")), 3);
+        file.close();
+        QCOMPARE(status(io.read(QUrl::fromLocalFile(path))), QStringLiteral("invalid-utf8"));
+        const QString malformed(1, QChar(0xd800));
+        QCOMPARE(status(io.write(QUrl::fromLocalFile(path), malformed, true)), QStringLiteral("invalid-utf16"));
 
         const auto link = dir.filePath(QStringLiteral("link.json"));
         QVERIFY(QFile::link(path, link));
