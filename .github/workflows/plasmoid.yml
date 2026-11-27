@@ -1,47 +1,79 @@
+name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
-name: CI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: "Plasmoid"
+  validate:
+    name: Validate and test
     runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
-    - name: Verify license headers
-      run: |
-        missing_headers=0
-        for file in $(find package/contents -name "*.qml" -o -name "*.xml"); do
-          if ! grep -q "SPDX-License-Identifier: GPL-3.0" "$file"; then
-            echo "Missing license header in $file"
-            missing_headers=1
-          fi
-        done
-        if [ $missing_headers -eq 1 ]; then
-          exit 1
-        fi
-    - name: Validate metadata.json
-      run: |
-        required_fields=("Authors" "Name" "Description" "Icon" "Version" "License" "Id")
-        metadata_file="package/metadata.json"
-        missing_fields=0
-        for field in "${required_fields[@]}"; do
-          if ! jq -e ".KPlugin.$field" "$metadata_file" > /dev/null 2>&1; then
-            echo "Missing required field: $field"
-            missing_fields=1
-          fi
-        done
-        if [ $missing_fields -eq 1 ]; then
-          exit 1
-        fi
-    - name: Package Plasmoid
-      run: |
-        cd package
-        zip -r ../io.github.vmkspv.kopypast.plasmoid .
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: plasma-applet-kopypast
-        path: io.github.vmkspv.kopypast.plasmoid
-        if-no-files-found: error
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed git qt6-declarative mesa gettext jq libxml2 zip unzip
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Record Qt version
+        run: pacman -Q qt6-base qt6-declarative
+
+      - name: Verify license headers and metadata
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            if ! grep -q 'SPDX-License-Identifier: GPL-3.0' "$file"; then
+              echo "Missing license header: $file"
+              exit 1
+            fi
+          done < <(find package/contents tests -type f \( -name '*.qml' -o -name '*.xml' \) -print0)
+          jq -e '.KPackageStructure == "Plasma/Applet" and
+            (.KPlugin | .Authors and .Name and .Description and .Icon and .Version and .License and .Id)' package/metadata.json
+          xmllint --noout package/contents/config/main.xml
+
+      - name: Parse all QML files
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            /usr/lib/qt6/bin/qmlformat "$file" >/dev/null
+          done < <(find package/contents tests -type f -name '*.qml' -print0)
+
+      - name: Validate translation catalogs
+        shell: bash
+        run: |
+          for file in translate/*.po; do
+            msgfmt --check-format -o /dev/null "$file"
+          done
+          bash -n translate/update-pot.sh
+
+      - name: Run Qt Quick regression tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: /usr/lib/qt6/bin/qmltestrunner -input tests
+
+      - name: Package plasmoid
+        run: |
+          cd package
+          zip -r ../io.github.vmkspv.kopypast.plasmoid .
+          cd ..
+          unzip -t io.github.vmkspv.kopypast.plasmoid
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plasma-applet-kopypast
+          path: io.github.vmkspv.kopypast.plasmoid
+          if-no-files-found: error
+          retention-days: 7
