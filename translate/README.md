@@ -52,4 +52,4 @@ Thank you for translating this project!
 
 1. Translations are stored in the `translate/*.po` files.
 2. Compiled `.mo` files are generated in `package/contents/locale/<lang>/LC_MESSAGES/`.
-3. The package namespace is `io.github.vmkspv.kopypast`.
+3. The package namespace is `io.github.fooftilly.kopypast`.

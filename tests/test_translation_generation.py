@@ -32,7 +32,7 @@ class TranslationGeneration(unittest.TestCase):
         (self.translate / "aa.po").write_text(VALID_PO, encoding="utf-8")
         locale = self.root / "package" / "contents" / "locale" / "aa" / "LC_MESSAGES"
         locale.mkdir(parents=True)
-        self.mo = locale / "plasma_applet_io.github.vmkspv.kopypast.mo"
+        self.mo = locale / "plasma_applet_io.github.fooftilly.kopypast.mo"
         self.mo.write_bytes(b"old catalog")
 
     def run_generator(self, env=None):

@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-namespace="io.github.vmkspv.kopypast"
+namespace="io.github.fooftilly.kopypast"
 staging=$(mktemp -d)
 trap 'rm -rf "$staging"' EXIT
 

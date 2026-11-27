@@ -1,4 +1,4 @@
-<img src="package/contents/icons/io.github.vmkspv.kopypast.svg" width="128" align="left" alt="Kopypast icon"/>
+<img src="package/contents/icons/io.github.fooftilly.kopypast.svg" width="128" align="left" alt="Kopypast icon"/>
 
 # Kopypast
 
@@ -20,7 +20,7 @@ kpackagetool6 -t Plasma/Applet --install package
 
 Add Kopypast using the Plasma widget browser.
 
-For existing installations, back up your snippets in the widget settings first. Use `--upgrade` instead of `--install`. The widget ID is unchanged.
+To migrate from the original widget, use **Snippets → Backup** there, then **Snippets → Restore** in this fork. Both widgets can coexist. For subsequent updates to this fork, use `--upgrade`.
 
 ## Contributing
 

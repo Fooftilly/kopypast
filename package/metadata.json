@@ -19,7 +19,7 @@
             "desktop"
         ],
         "Icon": "text-flow-into-frame",
-        "Id": "io.github.vmkspv.kopypast",
+        "Id": "io.github.fooftilly.kopypast",
         "License": "GPL-3.0",
         "Name": "Kopypast",
         "Version": "1.0.6",
