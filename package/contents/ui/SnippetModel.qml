@@ -11,23 +11,53 @@ Item {
     property string configValue: ""
     property var snippets: []
     property int count: snippets.length
+    property bool configurationValid: true
 
     onConfigValueChanged: {
         try {
-            var parsedSnippets = JSON.parse(configValue || "[]")
-            snippets = normalizeIds(parsedSnippets.map(function(snippet) {
-                return {
-                    id: snippet.id,
-                    title: snippet.title,
-                    text: snippet.text,
-                    usageCount: snippet.usageCount || 0,
-                    isNew: snippet.isNew !== undefined ? snippet.isNew : false
-                }
-            }))
-        } catch (e) {
-            console.error("Failed to parse snippets:", e)
+            var parsed = JSON.parse(configValue || "[]")
+            var records = normalizeRecords(parsed)
+            if (records === null)
+                throw new Error("Invalid snippet configuration")
+            snippets = normalizeIds(records)
+            configurationValid = true
+        } catch (error) {
+            // Preserve the original configuration string for recovery.
+            configurationValid = false
             snippets = []
+            console.warn("Invalid snippet configuration; changes are blocked")
         }
+    }
+
+    function normalizeRecords(data) {
+        if (!Array.isArray(data))
+            return null
+        var records = []
+        for (var i = 0; i < data.length; i++) {
+            var entry = data[i]
+            if (!entry || typeof entry.title !== "string" || entry.title.length === 0
+                    || typeof entry.text !== "string" || entry.text.length === 0
+                    || (entry.usageCount !== undefined
+                        && (!Number.isSafeInteger(entry.usageCount) || entry.usageCount < 0))
+                    || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")
+                    || (entry.id !== undefined && (typeof entry.id !== "string" || entry.id.length === 0)))
+                return null
+            records.push({
+                id: entry.id,
+                title: entry.title,
+                text: entry.text,
+                usageCount: entry.usageCount === undefined ? 0 : entry.usageCount,
+                isNew: entry.isNew === undefined ? false : entry.isNew
+            })
+        }
+        return records
+    }
+
+    function resetInvalidConfiguration() {
+        if (configurationValid)
+            return false
+        configValue = "[]"
+        return true
     }
 
     function loadFromConfig(config) {
@@ -117,7 +147,7 @@ Item {
     }
 
     function undoRemoval(deletion) {
-        if (!deletion || deletion.undone)
+        if (!configurationValid || !deletion || deletion.undone)
             return false
 
         var item = Object.assign({}, deletion.item)
@@ -205,6 +235,8 @@ Item {
     }
 
     function restoreBackup(content, maxSnippets) {
+        if (!configurationValid)
+            return { status: "invalid-config" }
         var data
         try {
             data = JSON.parse(content)
@@ -217,25 +249,9 @@ Item {
             return { status: "empty" }
 
         // Validate the entire backup before applying any changes.
-        var normalized = []
-        for (var i = 0; i < data.length; i++) {
-            var entry = data[i]
-            if (!entry || typeof entry.title !== "string" || entry.title.length === 0
-                    || typeof entry.text !== "string" || entry.text.length === 0
-                    || (entry.usageCount !== undefined
-                        && (!Number.isSafeInteger(entry.usageCount) || entry.usageCount < 0))
-                    || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")
-                    || (entry.id !== undefined && (typeof entry.id !== "string" || entry.id.length === 0))) {
-                return { status: "invalid-record" }
-            }
-            normalized.push({
-                id: entry.id,
-                title: entry.title,
-                text: entry.text,
-                usageCount: entry.usageCount === undefined ? 0 : entry.usageCount,
-                isNew: entry.isNew === undefined ? false : entry.isNew
-            })
-        }
+        var normalized = normalizeRecords(data)
+        if (normalized === null)
+            return { status: "invalid-record" }
 
         var seen = new Set(snippets.map(function(entry) {
             return JSON.stringify([entry.title, entry.text])
@@ -277,7 +293,13 @@ Item {
     }
 
     function updateModel(newSnippets) {
-        snippets = newSnippets
-        configValue = JSON.stringify(newSnippets)
+        if (!configurationValid)
+            return false
+        var records = normalizeRecords(newSnippets)
+        if (records === null)
+            return false
+        snippets = normalizeIds(records)
+        configValue = JSON.stringify(snippets)
+        return true
     }
 }
