@@ -56,6 +56,7 @@ jobs:
           for file in translate/*.po; do
             msgfmt --check-format -o /dev/null "$file"
           done
+          python -m unittest discover -s tests -p 'test_*.py'
           python tests/check_translations.py
           bash -n translate/update-pot.sh
 
