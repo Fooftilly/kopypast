@@ -4,6 +4,7 @@ set -euo pipefail
 # Keep all package/config changes inside a disposable test environment.
 sandbox=$(mktemp -d)
 viewer=""
+compositor=""
 cleanup() {
     if [[ -n "$viewer" ]]; then
         kill "$viewer" 2>/dev/null || true
@@ -11,6 +12,13 @@ cleanup() {
     fi
     if [[ -f "$sandbox/viewer.log" ]]; then
         cat "$sandbox/viewer.log"
+    fi
+    if [[ -n "$compositor" ]]; then
+        kill "$compositor" 2>/dev/null || true
+        wait "$compositor" 2>/dev/null || true
+    fi
+    if [[ -f "$sandbox/weston.log" ]]; then
+        cat "$sandbox/weston.log"
     fi
     rm -rf "$sandbox"
 }
@@ -22,6 +30,34 @@ export XDG_CACHE_HOME="$sandbox/cache"
 export XDG_RUNTIME_DIR="$sandbox/runtime"
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
+
+# Weston uses Xvfb only as its output backend to provide a real input seat.
+# The tested Qt clients use Wayland exclusively; no Xwayland or X11 fallback.
+case "${QT_QPA_PLATFORM:-xcb}" in
+    xcb)
+        export XDG_SESSION_TYPE=x11
+        ;;
+    wayland)
+        export WAYLAND_DISPLAY=kopypast-ci
+        export XDG_SESSION_TYPE=wayland
+        weston --backend=x11 --renderer=pixman --socket="$WAYLAND_DISPLAY" \
+            --width=1280 --height=800 --idle-time=0 --no-config >"$sandbox/weston.log" 2>&1 &
+        compositor=$!
+        for attempt in {1..30}; do
+            kill -0 "$compositor"
+            if [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]]; then
+                break
+            fi
+            sleep 1
+        done
+        test -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+        unset DISPLAY
+        ;;
+    *)
+        echo "Unsupported QT_QPA_PLATFORM: $QT_QPA_PLATFORM"
+        exit 1
+        ;;
+esac
 
 namespace=$(jq -er '.KPlugin.Id' package/metadata.json)
 kpackagetool6 -t Plasma/Applet --install package
@@ -44,7 +80,9 @@ export QT_FORCE_STDERR_LOGGING=1
 export QT_LOGGING_RULES="*.warning=true;*.critical=true;qml.debug=true"
 plasmoidviewer -a "$namespace" -f planar -l floating >"$sandbox/viewer.log" 2>&1 &
 viewer=$!
-timeout 30 xdotool search --sync --onlyvisible --pid "$viewer" >/dev/null
+if [[ "$QT_QPA_PLATFORM" == xcb ]]; then
+    timeout 30 xdotool search --sync --onlyvisible --pid "$viewer" >/dev/null
+fi
 
 # Require successful creation of both the applet and its full representation.
 for attempt in {1..30}; do
@@ -64,7 +102,7 @@ if grep -E 'QQmlComponent: Component is not ready|Error loading QML|Failed to lo
     echo "Plasma widget load failed"
     exit 1
 fi
-echo "Installed Plasma widget loaded under Xvfb"
+echo "Installed Plasma widget loaded with $QT_QPA_PLATFORM"
 
 kill "$viewer"
 wait "$viewer" || true

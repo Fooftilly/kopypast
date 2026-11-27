@@ -52,7 +52,13 @@ Dialog {
         if (first)
             first.focusField()
     }
-    onAccepted: copyRequested(snippetId, resolvedText)
+    onAccepted: {
+        // Capture before closing clears the form; defer copy until the dialog
+        // has started closing, so an immediate panel close cannot reject it.
+        const id = snippetId
+        const text = resolvedText
+        Qt.callLater(function() { dialog.copyRequested(id, text) })
+    }
     onClosed: {
         snippetId = ""
         templateText = ""

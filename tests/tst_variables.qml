@@ -41,12 +41,9 @@ TestCase {
         const now = new Date(2026, 0, 2)
         const text = "{{PROJECT}} {{PR_NUMBER}} {{PROJECT}} {ISO_DATE} {{bad}} \\{{LITERAL}} \\{DATE}"
         compare(handler.placeholderNames(text), ["PROJECT", "PR_NUMBER"])
-        const values = {PROJECT: "α 
-    function test_literalAndRepeatedTokens() { {YEAR} {{OTHER}}", PR_NUMBER: "37"}
+        const values = {PROJECT: "α $& {YEAR} {{OTHER}}", PR_NUMBER: "37"}
         compare(handler.processVariables(text, now, Qt.locale("en_US"), values),
-                "α 
-    function test_literalAndRepeatedTokens() { {YEAR} {{OTHER}} 37 α 
-    function test_literalAndRepeatedTokens() { {YEAR} {{OTHER}} 2026-01-02 {{bad}} {{LITERAL}} {DATE}")
+                "α $& {YEAR} {{OTHER}} 37 α $& {YEAR} {{OTHER}} 2026-01-02 {{bad}} {{LITERAL}} {DATE}")
         compare(handler.processVariables("{{EMPTY}}", now, Qt.locale(), {EMPTY: ""}), "")
         compare(handler.processVariables("{{MISSING}}", now), "{{MISSING}}")
         handler.processingEnabled = false
