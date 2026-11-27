@@ -10,7 +10,7 @@ qt_add_qml_module(kopypastfileio
     URI io.github.fooftilly.kopypast.fileio
     VERSION 1.0
     OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml/io/github/fooftilly/kopypast/fileio"
-    SOURCES backupfile.h backupfile.cpp
+    SOURCES backupfile.h backupfile.cpp sharedlibrary.h sharedlibrary.cpp
 )
 target_link_libraries(kopypastfileio PRIVATE Qt6::Core Qt6::Qml)
 
@@ -30,6 +30,12 @@ if(BUILD_TESTING)
     qt_add_executable(tst_backupfile tst_backupfile.cpp)
     target_link_libraries(tst_backupfile PRIVATE kopypastfileio Qt6::Test Qt6::Qml)
     add_dependencies(tst_backupfile kopypastfileioplugin)
+    qt_add_executable(tst_sharedlibrary tst_sharedlibrary.cpp)
+    target_link_libraries(tst_sharedlibrary PRIVATE kopypastfileio Qt6::Test Qt6::Qml)
+    add_dependencies(tst_sharedlibrary kopypastfileioplugin)
+    add_test(NAME sharedlibrary COMMAND tst_sharedlibrary)
+    set_tests_properties(sharedlibrary PROPERTIES
+        ENVIRONMENT "KOPYPAST_TEST_QML_PATH=${CMAKE_BINARY_DIR}/qml")
     add_test(NAME backupfile COMMAND tst_backupfile)
     set_tests_properties(backupfile PROPERTIES
         ENVIRONMENT "KOPYPAST_TEST_QML_PATH=${CMAKE_BINARY_DIR}/qml")
