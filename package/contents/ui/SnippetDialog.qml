@@ -15,7 +15,6 @@ Dialog {
     property string defaultTemplate: ""
     property bool processVariables: true
     property string editId: ""
-    signal saved()
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
@@ -36,15 +35,17 @@ Dialog {
         processingEnabled: dialog.processVariables
     }
 
-    Component.onCompleted: {
-        standardButton(Dialog.Ok).enabled = isValid
+    function updateAcceptButton() {
+        var button = standardButton(Dialog.Ok)
+        if (button)
+            button.enabled = isValid
     }
 
-    onIsValidChanged: {
-        standardButton(Dialog.Ok).enabled = isValid
-    }
+    Component.onCompleted: updateAcceptButton()
+    onIsValidChanged: updateAcceptButton()
 
     onOpened: {
+        updateAcceptButton()
         previewing = false
         resolvedPreview = ""
         titleField.forceActiveFocus()
@@ -94,7 +95,6 @@ Dialog {
                 return
             store.set(index, item)
         }
-        saved()
     }
 
     ColumnLayout {
