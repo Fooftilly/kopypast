@@ -11,7 +11,9 @@ import org.kde.kirigami.private as KirigamiPrivate
 
 Dialog {
     id: dialog
-    parent: snippetsPage
+    required property var store
+    required property int maximumSnippets
+    signal notificationRequested(string message, int timeout)
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
@@ -21,9 +23,9 @@ Dialog {
     standardButtons: isBackup ? Dialog.Close : Dialog.Ok | Dialog.Cancel
 
     property bool isBackup: true
-    property string backupContent: snippetModel.configurationValid
-        ? backupFormat.encode(snippetModel.snippets)
-        : snippetModel.configValue
+    property string backupContent: store.configurationValid
+        ? backupFormat.encode(store.snippets)
+        : store.configValue
 
     BackupFormat {
         id: backupFormat
@@ -31,7 +33,7 @@ Dialog {
     property bool isValid: !isBackup && textArea.text !== ""
 
     function showNotification(message, timeout = 3000) {
-        applicationWindow().showPassiveNotification(message, timeout)
+        notificationRequested(message, timeout)
     }
 
     function updateAcceptButton() {
@@ -68,7 +70,7 @@ Dialog {
             return
         }
 
-        var result = snippetModel.restoreBackup(decoded.content, plasmoid.configuration.maxSnippets, decoded.preserveIdentity)
+        var result = store.restoreBackup(decoded.content, maximumSnippets, decoded.preserveIdentity)
         switch (result.status) {
         case "invalid-config":
             showNotification(i18n("Invalid snippet configuration"))
@@ -90,7 +92,7 @@ Dialog {
             break
         case "limit":
             showNotification(i18n("Cannot restore snippets: maximum limit (%1) reached",
-                                  plasmoid.configuration.maxSnippets))
+                                  maximumSnippets))
             break
         case "partial":
             showNotification(i18np("Only restored %1 snippet due to maximum limit",
