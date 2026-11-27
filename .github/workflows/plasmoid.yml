@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm --needed git qt6-declarative mesa gettext jq libxml2 zip unzip
+        run: pacman -Syu --noconfirm --needed git qt6-declarative mesa gettext python-polib jq libxml2 zip unzip
 
       - uses: actions/checkout@v4
         with:
@@ -56,6 +56,7 @@ jobs:
           for file in translate/*.po; do
             msgfmt --check-format -o /dev/null "$file"
           done
+          python tests/check_translations.py
           bash -n translate/update-pot.sh
 
       - name: Run Qt Quick regression tests
