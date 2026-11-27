@@ -34,7 +34,22 @@ Dialog {
 
     title: editId === "" ? i18n("Add Snippet") : i18n("Edit Snippet")
     modal: true
-    standardButtons: Dialog.Ok | Dialog.Cancel
+    property bool saveFailed: false
+    // Action buttons do not accept the dialog until the model confirms the
+    // write. This keeps an unsaved draft visible after storage failure.
+    footer: DialogButtonBox {
+        Button {
+            objectName: "saveSnippetButton"
+            text: i18n("Save")
+            enabled: dialog.isValid
+            DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
+            onClicked: dialog.submit()
+        }
+        Button {
+            text: i18n("Cancel")
+            DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+        }
+    }
 
     property bool isValid: store.configurationValid && titleField.text !== "" && textArea.text !== ""
         && (editId === "" ? store.count < maximumSnippets : !editConflict)
@@ -48,17 +63,8 @@ Dialog {
         processingEnabled: dialog.processVariables
     }
 
-    function updateAcceptButton() {
-        var button = standardButton(Dialog.Ok)
-        if (button)
-            button.enabled = isValid
-    }
-
-    Component.onCompleted: updateAcceptButton()
-    onIsValidChanged: updateAcceptButton()
-
     onOpened: {
-        updateAcceptButton()
+        saveFailed = false
         previewing = false
         resolvedPreview = ""
         titleField.forceActiveFocus()
@@ -93,23 +99,28 @@ Dialog {
         open()
     }
 
-    onAccepted: {
+    function submit() {
         if (!isValid)
-            return
+            return false
         var item = {
             title: titleText,
             text: snippetText,
             category: categoryField.text,
             tags: tagsField.text.split(",")
         }
+        var success
         if (editId === "") {
-            store.append(item)
+            success = store.append(item)
         } else {
             var index = store.indexOfId(editId)
             if (index < 0)
-                return
-            store.set(index, item)
+                return false
+            success = store.set(index, item)
         }
+        saveFailed = !success
+        if (success)
+            accept()
+        return success
     }
 
     ColumnLayout {
@@ -120,6 +131,14 @@ Dialog {
             Layout.fillWidth: true
             visible: dialog.editConflict
             text: i18n("This snippet changed or was removed while editing. Copy your draft if needed, then cancel and reopen the snippet.")
+            wrapMode: Text.WordWrap
+            color: Kirigami.Theme.negativeTextColor
+        }
+
+        Label {
+            Layout.fillWidth: true
+            visible: dialog.saveFailed
+            text: i18n("Could not save the snippet. Your draft is still open. Resolve the storage problem and try again, or cancel.")
             wrapMode: Text.WordWrap
             color: Kirigami.Theme.negativeTextColor
         }
