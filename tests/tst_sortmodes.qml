@@ -17,7 +17,7 @@ TestCase {
             {id: "b", title: "Beta", text: "match", createdAt: 300, lastUsedAt: 100},
             {id: "c", title: "alpha", text: "match", favorite: true, createdAt: 400, lastUsedAt: 0},
             {id: "d", title: "Delta", text: "other", favorite: true},
-            {id: "e", title: "alpha", text: "match"}
+            {id: "e", title: "alpha", text: "match legacy"}
         ]))
         restored.loadFromConfig("[]")
         verify(store.configurationValid)
