@@ -6,6 +6,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 import org.kde.kirigami.private as KirigamiPrivate
 
@@ -21,6 +22,23 @@ Dialog {
     title: isBackup ? i18n("Backup Snippets") : i18n("Restore Snippets")
     modal: true
     standardButtons: isBackup ? Dialog.Close : Dialog.Ok | Dialog.Cancel
+
+    // Load only the fixed, trusted optional module; a missing module must
+    // not prevent ordinary clipboard backup/restore or widget installation.
+    property var fileBackend: null
+    readonly property bool fileAccessAvailable: fileBackend !== null
+    property url pendingOverwriteUrl
+    property string pendingOverwriteText
+
+    Component.onCompleted: {
+        try {
+            fileBackend = Qt.createQmlObject(
+                "import io.github.fooftilly.kopypast.fileio 1.0; BackupFile {}",
+                dialog, "OptionalBackupFile")
+        } catch (error) {
+            fileBackend = null
+        }
+    }
 
     property bool isBackup: true
     property string backupContent: store.configurationValid
@@ -55,7 +73,13 @@ Dialog {
             textArea.forceActiveFocus()
     }
 
-    onClosed: textArea.clear()
+    onClosed: {
+        filePicker.close()
+        overwriteDialog.close()
+        pendingOverwriteText = ""
+        pendingOverwriteUrl = ""
+        textArea.clear()
+    }
     onIsValidChanged: updateAcceptButton()
 
     onAccepted: {
@@ -113,6 +137,83 @@ Dialog {
         }
     }
 
+    function reportFileError(status) {
+        switch (status) {
+        case "too-large":
+            showNotification(i18n("Backup file exceeds the 16 MiB size limit"))
+            break
+        case "invalid-utf8":
+        case "invalid-utf16":
+            showNotification(i18n("Backup file contains invalid Unicode text"))
+            break
+        case "invalid-path":
+            showNotification(i18n("Select a local regular file"))
+            break
+        default:
+            showNotification(i18n("Could not read or write the backup file"))
+        }
+    }
+
+    function readBackupFile(url) {
+        if (!fileAccessAvailable || !visible || isBackup)
+            return
+        const result = fileBackend.read(url)
+        if (result.status === "ok")
+            textArea.text = result.text
+        else
+            reportFileError(result.status)
+    }
+
+    function writeBackupFile(url, text, replaceExisting = false) {
+        if (!fileAccessAvailable || !visible || !isBackup)
+            return
+        const result = fileBackend.write(url, text, replaceExisting)
+        if (result.status === "ok") {
+            showNotification(i18n("Backup file saved"))
+        } else if (result.status === "exists" && !replaceExisting) {
+            pendingOverwriteUrl = url
+            pendingOverwriteText = text
+            overwriteDialog.open()
+        } else {
+            reportFileError(result.status)
+        }
+    }
+
+    FileDialog {
+        id: filePicker
+        title: dialog.isBackup ? i18n("Save backup file") : i18n("Open backup file")
+        fileMode: dialog.isBackup ? FileDialog.SaveFile : FileDialog.OpenFile
+        nameFilters: [i18n("JSON files (*.json)"), i18n("All files (*)")]
+        defaultSuffix: dialog.isBackup ? "json" : ""
+        // Always let our own explicit confirmation handle replacement.
+        options: dialog.isBackup ? FileDialog.DontConfirmOverwrite : 0
+        onAccepted: {
+            if (dialog.isBackup)
+                dialog.writeBackupFile(selectedFile, textArea.text)
+            else
+                dialog.readBackupFile(selectedFile)
+        }
+    }
+
+    Dialog {
+        id: overwriteDialog
+        parent: dialog.contentItem
+        anchors.centerIn: parent
+        width: Math.min(parent.width, Kirigami.Units.gridUnit * 24)
+        title: i18n("Replace existing backup?")
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        contentItem: Label {
+            text: i18n("The selected file already exists. Replace its contents?")
+            wrapMode: Text.Wrap
+        }
+        onAccepted: dialog.writeBackupFile(dialog.pendingOverwriteUrl, dialog.pendingOverwriteText, true)
+        onClosed: {
+            dialog.pendingOverwriteUrl = ""
+            dialog.pendingOverwriteText = ""
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Kirigami.Units.smallSpacing
@@ -124,6 +225,14 @@ Dialog {
                 : i18n("Paste the backup contents below to restore your snippets:")
             wrapMode: Text.Wrap
             color: Kirigami.Theme.textColor
+        }
+
+        Button {
+            objectName: "backupFileButton"
+            visible: dialog.fileAccessAvailable
+            text: dialog.isBackup ? i18n("Save to file") : i18n("Open file")
+            icon.name: dialog.isBackup ? "document-save" : "document-open"
+            onClicked: filePicker.open()
         }
 
         ScrollView {

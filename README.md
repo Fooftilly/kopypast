@@ -22,6 +22,18 @@ Add Kopypast using the Plasma widget browser.
 
 To migrate from the original widget, use **Snippets → Backup** there, then **Snippets → Restore** in this fork. Both widgets can coexist. For subsequent updates to this fork, use `--upgrade`.
 
+## Optional file backups
+
+Clipboard backup and restore work without extra installation. To enable direct JSON file import/export, build and install the optional native Qt module. On Arch Linux, install `base-devel`, `cmake`, `ninja` and `qt6-declarative` first:
+
+```sh
+cmake -S native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake --build build/native
+sudo cmake --install build/native --prefix /usr
+```
+
+The default module destination on Arch is `/usr/lib/qt6/qml/io/github/fooftilly/kopypast/fileio`. For other Qt installations, set `KOPYPAST_QML_INSTALL_DIR` to the appropriate QML import root at configure time. Restart Plasma Shell after installing the module. Open **Configure Kopypast → Snippets → Backup/Restore** to use the file buttons. Restore loads the file into the existing preview/input and applies the same validation only after you accept. Save requires explicit confirmation to replace an existing file. Files are limited to 16 MiB. Backups contain plaintext; keep them private. Rebuild the module after incompatible Qt upgrades.
+
 ## Keyboard shortcuts
 
 For a panel instance, right-click Kopypast, open **Configure Kopypast → Keyboard Shortcuts**, and assign a shortcut. Plasma registers the shortcut for that widget instance and handles conflicts. No default key combination is reserved.
