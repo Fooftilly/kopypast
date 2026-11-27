@@ -36,6 +36,10 @@ PlasmoidItem {
         onConfigValueChanged: plasmoid.configuration.snippets = configValue
     }
 
+    Local.SearchHighlighter {
+        id: searchHighlighter
+    }
+
     Local.VariableHandler {
         id: variableHandler
         processingEnabled: plasmoid.configuration.handleVariables
@@ -278,14 +282,20 @@ PlasmoidItem {
 
                             Label {
                                 Layout.fillWidth: true
-                                text: modelData.title
+                                readonly property var displayText: searchHighlighter.highlight(modelData.title, root.searchQuery)
+                                text: displayText.text
+                                textFormat: displayText.highlighted ? Text.StyledText : Text.PlainText
+                                Accessible.name: modelData.title
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
                             }
 
                             Label {
                                 Layout.fillWidth: true
-                                text: modelData.text
+                                readonly property var displayText: searchHighlighter.highlight(modelData.text, root.searchQuery)
+                                text: displayText.text
+                                textFormat: displayText.highlighted ? Text.StyledText : Text.PlainText
+                                Accessible.name: modelData.text
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
                                 opacity: 0.7
