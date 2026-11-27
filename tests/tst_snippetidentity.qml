@@ -11,6 +11,9 @@ TestCase {
     name: "SnippetIdentity"
 
     property var store
+    property bool sortByUsage: false
+    property string query: ""
+    property var visibleSnippets: store ? store.getFilteredSnippets(sortByUsage, query) : []
 
     Component {
         id: modelComponent
@@ -20,6 +23,8 @@ TestCase {
     function init() {
         store = createTemporaryObject(modelComponent, this)
         verify(store !== null)
+        sortByUsage = false
+        query = ""
     }
 
     function cleanup() {
@@ -76,6 +81,29 @@ TestCase {
         compare(store.get(1).usageCount, 2)
         compare(store.get(1).isNew, false)
         compare(JSON.parse(store.configValue), store.snippets)
+    }
+
+    function test_filteredSelectionAndSortPreference() {
+        const firstId = append("Same", "text")
+        const secondId = append("Same", "text")
+        const unrelatedId = append("Other", "unrelated")
+        query = "SAME"
+        compare(visibleSnippets.length, 2)
+        compare(visibleSnippets[1].id, secondId)
+
+        store.recordUse(visibleSnippets[1].id)
+        compare(store.get(0).usageCount, 0)
+        compare(store.get(1).usageCount, 1)
+        sortByUsage = true
+        compare(visibleSnippets[0].id, secondId)
+        sortByUsage = false
+        compare(visibleSnippets[0].id, firstId)
+        store.recordUse(visibleSnippets[1].id)
+        sortByUsage = true
+        compare(visibleSnippets[0].id, secondId)
+        compare(visibleSnippets[0].usageCount, 2)
+        compare(store.get(2).id, unrelatedId)
+        compare(store.get(2).usageCount, 0)
     }
 
     function test_undoMultipleDeletions() {
