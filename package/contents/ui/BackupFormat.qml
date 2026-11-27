@@ -29,6 +29,8 @@ QtObject {
             return { status: "ok", content: content }
         if (!data || typeof data !== "object" || data.format !== format)
             return { status: "invalid-format" }
+        if (!Number.isSafeInteger(data.version) || data.version < 1)
+            return { status: "invalid-format" }
         if (data.version !== version)
             return { status: "unsupported-version" }
         if (!Array.isArray(data.snippets))

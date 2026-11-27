@@ -13,13 +13,24 @@ Item {
     property int count: snippets.length
     property bool configurationValid: true
 
+    // A prepared internal write is valid only for its exact serialized value.
+    // External configuration changes must always pass normal validation.
+    property var preparedWrite: null
+
     onConfigValueChanged: {
+        if (preparedWrite !== null && preparedWrite.config === configValue) {
+            var records = preparedWrite.records
+            preparedWrite = null
+            snippets = records
+            configurationValid = true
+            return
+        }
         try {
             var parsed = JSON.parse(configValue || "[]")
-            var records = normalizeRecords(parsed)
-            if (records === null)
+            var normalized = normalizeRecords(parsed)
+            if (normalized === null)
                 throw new Error("Invalid snippet configuration")
-            snippets = normalizeIds(records)
+            snippets = normalizeIds(normalized)
             configurationValid = true
         } catch (error) {
             // Preserve the original configuration string for recovery.
@@ -27,6 +38,11 @@ Item {
             snippets = []
             console.warn("Invalid snippet configuration; changes are blocked")
         }
+    }
+
+    function validTimestamp(value) {
+        return value === undefined || value === null
+            || (Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000000)
     }
 
     function normalizeRecords(data) {
@@ -41,6 +57,7 @@ Item {
                         && (!Number.isSafeInteger(entry.usageCount) || entry.usageCount < 0))
                     || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")
                     || (entry.favorite !== undefined && typeof entry.favorite !== "boolean")
+                    || !validTimestamp(entry.createdAt) || !validTimestamp(entry.lastUsedAt)
                     || (entry.id !== undefined && (typeof entry.id !== "string" || entry.id.length === 0)))
                 return null
             records.push({
@@ -49,7 +66,9 @@ Item {
                 text: entry.text,
                 usageCount: entry.usageCount === undefined ? 0 : entry.usageCount,
                 isNew: entry.isNew === undefined ? false : entry.isNew,
-                favorite: entry.favorite === true
+                favorite: entry.favorite === true,
+                createdAt: entry.createdAt === undefined ? null : entry.createdAt,
+                lastUsedAt: entry.lastUsedAt === undefined ? null : entry.lastUsedAt
             })
         }
         return records
@@ -113,7 +132,9 @@ Item {
             text: item.text,
             usageCount: 0,
             isNew: true,
-            favorite: false
+            favorite: false,
+            createdAt: Date.now(),
+            lastUsedAt: null
         })
         updateModel(snippetsArray)
     }
@@ -183,14 +204,19 @@ Item {
     }
 
     function incrementUsage(index) {
+        if (!configurationValid || !snippets[index])
+            return
         var snippetsArray = snippets.slice()
-        if (snippetsArray[index]) {
-            snippetsArray[index].usageCount = Math.min(Number.MAX_SAFE_INTEGER, (snippetsArray[index].usageCount || 0) + 1)
-            if (snippetsArray[index].isNew) {
-                snippetsArray[index].isNew = false
-            }
-            updateModel(snippetsArray)
-        }
+        var now = Date.now()
+        // Preserve the validation invariant even if the system clock is invalid.
+        if (!validTimestamp(now))
+            return
+        snippetsArray[index] = Object.assign({}, snippetsArray[index], {
+            usageCount: Math.min(Number.MAX_SAFE_INTEGER, snippetsArray[index].usageCount + 1),
+            isNew: false,
+            lastUsedAt: now
+        })
+        commitNormalized(snippetsArray)
     }
 
     function recordUse(id) {
@@ -200,11 +226,11 @@ Item {
     }
 
     function markAsUsed(index) {
+        if (!configurationValid || !snippets[index] || !snippets[index].isNew)
+            return
         var snippetsArray = snippets.slice()
-        if (snippetsArray[index] && snippetsArray[index].isNew) {
-            snippetsArray[index].isNew = false
-            updateModel(snippetsArray)
-        }
+        snippetsArray[index] = Object.assign({}, snippetsArray[index], { isNew: false })
+        commitNormalized(snippetsArray)
     }
 
     function setFavorite(id, favorite) {
@@ -217,11 +243,13 @@ Item {
             return true
         var updated = snippets.slice()
         updated[index] = Object.assign({}, updated[index], { favorite: favorite })
-        return updateModel(updated)
+        return commitNormalized(updated)
     }
 
-    function getSortedSnippets(sortByUsage) {
-        // Partition by favorite without changing persisted manual order.
+    function getSortedSnippets(sortMode) {
+        // 0 manual, 1 usage, 2 recent use, 3 recently created, 4 alphabetical.
+        // Favorites remain first in every mode. Unknown dates sort last.
+        var mode = Number(sortMode)
         var favorites = []
         var others = []
         for (var i = 0; i < snippets.length; i++) {
@@ -232,18 +260,45 @@ Item {
                 others.push(record)
         }
 
-        if (sortByUsage) {
-            function compareUsage(a, b) {
-                return b.item.usageCount - a.item.usageCount || a.index - b.index
+        function compareDates(a, b) {
+            if (a === b)
+                return 0
+            if (a === null)
+                return 1
+            if (b === null)
+                return -1
+            return b - a
+        }
+
+        function compareRecords(a, b) {
+            var result = 0
+            switch (mode) {
+            case 1:
+                result = b.item.usageCount - a.item.usageCount
+                break
+            case 2:
+                result = compareDates(a.item.lastUsedAt, b.item.lastUsedAt)
+                break
+            case 3:
+                result = compareDates(a.item.createdAt, b.item.createdAt)
+                break
+            case 4:
+                result = a.item.title.normalize("NFC").toLocaleLowerCase().localeCompare(
+                    b.item.title.normalize("NFC").toLocaleLowerCase())
+                break
             }
-            favorites.sort(compareUsage)
-            others.sort(compareUsage)
+            return result || a.index - b.index
+        }
+
+        if (mode >= 1 && mode <= 4) {
+            favorites.sort(compareRecords)
+            others.sort(compareRecords)
         }
         return favorites.concat(others).map(function(record) { return record.item })
     }
 
-    function getFilteredSnippets(sortByUsage, query) {
-        var sorted = getSortedSnippets(sortByUsage)
+    function getFilteredSnippets(sortMode, query) {
+        var sorted = getSortedSnippets(sortMode)
         var search = query.trim().normalize("NFC").toLowerCase()
         if (!search)
             return sorted
@@ -324,8 +379,26 @@ Item {
         var records = normalizeRecords(newSnippets)
         if (records === null)
             return false
-        snippets = normalizeIds(records)
-        configValue = JSON.stringify(snippets)
-        return true
+        return commitNormalized(normalizeIds(records))
+    }
+
+    // Only use this path with already validated records and unchanged unique IDs.
+    // Metadata-only mutations above preserve that invariant; imports/edits use
+    // updateModel(), and externally loaded JSON uses onConfigValueChanged.
+    function commitNormalized(records) {
+        if (!configurationValid)
+            return false
+        var serialized = JSON.stringify(records)
+        if (serialized === configValue)
+            return true
+
+        preparedWrite = { config: serialized, records: records }
+        try {
+            configValue = serialized
+        } finally {
+            // Do not let a later external change reuse a prepared snapshot.
+            preparedWrite = null
+        }
+        return configValue === serialized
     }
 }

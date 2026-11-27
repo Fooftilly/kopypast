@@ -47,7 +47,10 @@ TestCase {
             {tag: "null", raw: "null", status: "invalid-format"},
             {tag: "wrong-format", raw: '{"format":"other","version":1,"snippets":[]}', status: "invalid-format"},
             {tag: "future", raw: '{"format":"io.github.fooftilly.kopypast","version":2,"snippets":[]}', status: "unsupported-version"},
-            {tag: "string-version", raw: '{"format":"io.github.fooftilly.kopypast","version":"1","snippets":[]}', status: "unsupported-version"},
+            {tag: "string-version", raw: '{"format":"io.github.fooftilly.kopypast","version":"1","snippets":[]}', status: "invalid-format"},
+            {tag: "missing-version", raw: '{"format":"io.github.fooftilly.kopypast","snippets":[]}', status: "invalid-format"},
+            {tag: "fractional-version", raw: '{"format":"io.github.fooftilly.kopypast","version":1.5,"snippets":[]}', status: "invalid-format"},
+            {tag: "negative-version", raw: '{"format":"io.github.fooftilly.kopypast","version":-1,"snippets":[]}', status: "invalid-format"},
             {tag: "missing-records", raw: '{"format":"io.github.fooftilly.kopypast","version":1}', status: "invalid-format"},
             {tag: "not-array", raw: '{"format":"io.github.fooftilly.kopypast","version":1,"snippets":{}}', status: "invalid-format"}
         ]

@@ -124,7 +124,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Plasma and compositor dependencies
-        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth weston jq dbus
+        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth weston xdotool jq dbus
 
       - uses: actions/checkout@v4
         with:
