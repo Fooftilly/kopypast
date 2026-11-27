@@ -51,6 +51,9 @@ case "${QT_QPA_PLATFORM:-xcb}" in
             sleep 1
         done
         test -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+        # Test driver may send physical input to Weston's virtual output.
+        # Keep DISPLAY unset in every Qt Wayland client.
+        export KOPYPAST_TEST_OUTPUT_DISPLAY="$DISPLAY"
         unset DISPLAY
         ;;
     *)
