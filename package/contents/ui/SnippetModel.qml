@@ -193,6 +193,17 @@ Item {
         return sortedSnippets
     }
 
+    function getFilteredSnippets(sortByUsage, query) {
+        var sorted = getSortedSnippets(sortByUsage)
+        if (!query)
+            return sorted
+        var search = query.toLowerCase()
+        return sorted.filter(function(snippet) {
+            return snippet.title.toLowerCase().includes(search)
+                    || snippet.text.toLowerCase().includes(search)
+        })
+    }
+
     function restoreBackup(content, maxSnippets) {
         var data
         try {
