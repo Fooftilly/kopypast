@@ -21,6 +21,10 @@ Item {
     onPanelChanged: timer.stop()
     onDelayChanged: timer.stop()
 
+    function cancelPending() {
+        timer.stop()
+    }
+
     function requestClose() {
         if (!expanded || pinned || !panel)
             return
