@@ -15,6 +15,8 @@ PlasmoidItem {
     id: root
 
     preferredRepresentation: isPanel ? compactRepresentation : fullRepresentation
+    // Plasma owns registration, conflict handling and activation of per-instance shortcuts.
+    activationTogglesExpanded: true
 
     property bool isCopied: false
     property string searchQuery: ""
@@ -56,6 +58,23 @@ PlasmoidItem {
     }
 
     compactRepresentation: Item {
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: Plasmoid.title
+        Accessible.onPressAction: Plasmoid.activated()
+
+        Keys.onPressed: function(event) {
+            switch (event.key) {
+            case Qt.Key_Space:
+            case Qt.Key_Enter:
+            case Qt.Key_Return:
+            case Qt.Key_Select:
+                Plasmoid.activated()
+                event.accepted = true
+                break
+            }
+        }
+
         Kirigami.Icon {
             anchors.fill: parent
             source: plasmoid.configuration.useSymbolicIcon
@@ -76,6 +95,22 @@ PlasmoidItem {
 
     fullRepresentation: ColumnLayout {
         id: popupContent
+
+        function focusOnOpen() {
+            if (!root.isPanel || !root.expanded || !visible)
+                return
+            if (searchField.enabled)
+                searchField.forceActiveFocus()
+            else if (plasmoid.configuration.useKbdNavigation)
+                snippetList.forceActiveFocus()
+        }
+
+        // The full representation may be created lazily, after expanded changes.
+        Component.onCompleted: Qt.callLater(focusOnOpen)
+        onVisibleChanged: {
+            if (visible)
+                Qt.callLater(focusOnOpen)
+        }
 
         function copySnippet(snippet) {
             if (!snippet)
@@ -265,12 +300,7 @@ PlasmoidItem {
             function onExpandedChanged() {
                 if (root.expanded) {
                     snippetList.resetSelection()
-                    if (plasmoid.configuration.useKbdNavigation) {
-                        if (searchField.enabled)
-                            searchField.forceActiveFocus()
-                        else
-                            snippetList.forceActiveFocus()
-                    }
+                    Qt.callLater(popupContent.focusOnOpen)
                 } else if (!plasmoid.configuration.isPinned) {
                     snippetList.currentIndex = -1
                     snippetList.positionViewAtBeginning()
