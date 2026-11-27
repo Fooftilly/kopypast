@@ -14,6 +14,16 @@ qt_add_qml_module(kopypastfileio
 )
 target_link_libraries(kopypastfileio PRIVATE Qt6::Core Qt6::Qml)
 
+include(GNUInstallDirs)
+set(KOPYPAST_QML_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/qt6/qml" CACHE STRING "Qt QML module installation root")
+set(module_dir "${KOPYPAST_QML_INSTALL_DIR}/io/github/fooftilly/kopypast/fileio")
+set_target_properties(kopypastfileioplugin PROPERTIES INSTALL_RPATH "$ORIGIN")
+install(TARGETS kopypastfileio kopypastfileioplugin LIBRARY DESTINATION "${module_dir}")
+install(FILES
+    "${CMAKE_BINARY_DIR}/qml/io/github/fooftilly/kopypast/fileio/qmldir"
+    "${CMAKE_BINARY_DIR}/qml/io/github/fooftilly/kopypast/fileio/kopypastfileio.qmltypes"
+    DESTINATION "${module_dir}")
+
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)

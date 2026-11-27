@@ -28,3 +28,15 @@ jobs:
           cmake --build build/native
       - name: Test native file operations and QML import
         run: ctest --test-dir build/native --output-on-failure
+
+      - name: Verify installed module and backup dialog
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        shell: bash
+        run: |
+          pacman -S --noconfirm --needed kirigami mesa ttf-dejavu
+          cmake --install build/native --prefix "$RUNNER_TEMP/kopypast"
+          export QML_IMPORT_PATH="$RUNNER_TEMP/kopypast/lib/qt6/qml"
+          /usr/lib/qt6/bin/qmltestrunner -input native/integration/tst_backupfiledialog.qml
+          rm -f native-test-backup-*.json
