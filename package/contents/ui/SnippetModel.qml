@@ -276,6 +276,55 @@ Item {
         return commitNormalized(updated)
     }
 
+    function metadataNames(kind) {
+        if (kind !== "category" && kind !== "tag")
+            return []
+        var seen = new Set()
+        var names = []
+        for (var i = 0; i < snippets.length; i++) {
+            var values = kind === "category" ? [snippets[i].category] : snippets[i].tags
+            for (var j = 0; j < values.length; j++) {
+                var key = values[j].toLowerCase()
+                if (key && !seen.has(key)) {
+                    seen.add(key)
+                    names.push(values[j])
+                }
+            }
+        }
+        return names.sort(function(a,b) { return a.localeCompare(b) })
+    }
+
+    // An empty replacement clears the category or removes the tag.
+    // Snippets themselves are never removed.
+    function renameMetadata(kind, from, to) {
+        if (!configurationValid || (kind !== "category" && kind !== "tag")
+                || typeof from !== "string" || typeof to !== "string")
+            return false
+        var source = from.trim().normalize("NFC").toLowerCase()
+        var replacement = to.trim().normalize("NFC")
+        if (!source || /[\r\n]/.test(replacement) || (kind === "tag" && replacement.includes(",")))
+            return false
+        var changed = false
+        var updated = snippets.map(function(item) {
+            if (kind === "category") {
+                if (item.category.toLowerCase() !== source || item.category === replacement)
+                    return item
+                changed = true
+                return Object.assign({}, item, { category: replacement })
+            }
+            if (!item.tags.some(function(tag) { return tag.toLowerCase() === source }))
+                return item
+            var tags = normalizedTags(item.tags.map(function(tag) {
+                return tag.toLowerCase() === source ? replacement : tag
+            }))
+            if (JSON.stringify(tags) === JSON.stringify(item.tags))
+                return item
+            changed = true
+            return Object.assign({}, item, { tags: tags })
+        })
+        return changed && updateModel(updated)
+    }
+
     function getSortedSnippets(sortMode) {
         // 0 manual, 1 usage, 2 recent use, 3 recently created, 4 alphabetical.
         // Favorites remain first in every mode. Unknown dates sort last.

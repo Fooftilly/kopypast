@@ -236,6 +236,13 @@ SimpleKCM {
                 onClicked: recoveryDialog.open()
             }
 
+            Button {
+                icon.name: "tag"
+                text: i18n("Manage groups")
+                enabled: snippetModel.configurationValid && snippetModel.count > 0
+                onClicked: metadataDialog.open()
+            }
+
             Item { Layout.fillWidth: true }
 
             Button {
@@ -274,6 +281,14 @@ SimpleKCM {
             wrapMode: Text.WordWrap
             text: i18n("This clears the stored snippet data when you apply the settings. Copy the original data using Backup before continuing.")
         }
+    }
+
+    Local.MetadataDialog {
+        id: metadataDialog
+        parent: snippetsPage
+        anchors.centerIn: parent
+        width: Math.min(snippetsPage.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 28)
+        store: snippetModel
     }
 
     SnippetDialog {
