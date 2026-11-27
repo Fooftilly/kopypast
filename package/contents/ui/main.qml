@@ -116,30 +116,8 @@ PlasmoidItem {
 
             ListView {
                 id: snippetList
-                property var filteredModel: {
-                    var sortedSnippets = snippetModel.getSortedSnippets(plasmoid.configuration.sortByUsage)
-                    return root.searchQuery
-                        ? sortedSnippets.filter(function(snippet) {
-                            return snippet.title.toLowerCase().includes(root.searchQuery.toLowerCase()) ||
-                                   snippet.text.toLowerCase().includes(root.searchQuery.toLowerCase())
-                          })
-                        : sortedSnippets
-                }
-
-                Connections {
-                    target: plasmoid.configuration
-                    function onSortByUsageChanged() {
-                        snippetList.filteredModel = Qt.binding(function() {
-                            var sortedSnippets = snippetModel.getSortedSnippets(plasmoid.configuration.sortByUsage)
-                            return root.searchQuery
-                                ? sortedSnippets.filter(function(snippet) {
-                                    return snippet.title.toLowerCase().includes(root.searchQuery.toLowerCase()) ||
-                                           snippet.text.toLowerCase().includes(root.searchQuery.toLowerCase())
-                                  })
-                                : sortedSnippets
-                        })
-                    }
-                }
+                property var filteredModel: snippetModel.getFilteredSnippets(
+                    plasmoid.configuration.sortByUsage, root.searchQuery)
 
                 model: filteredModel
                 clip: true
