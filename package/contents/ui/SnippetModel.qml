@@ -13,13 +13,24 @@ Item {
     property int count: snippets.length
     property bool configurationValid: true
 
+    // A prepared internal write is valid only for its exact serialized value.
+    // External configuration changes must always pass normal validation.
+    property var preparedWrite: null
+
     onConfigValueChanged: {
+        if (preparedWrite !== null && preparedWrite.config === configValue) {
+            var records = preparedWrite.records
+            preparedWrite = null
+            snippets = records
+            configurationValid = true
+            return
+        }
         try {
             var parsed = JSON.parse(configValue || "[]")
-            var records = normalizeRecords(parsed)
-            if (records === null)
+            var normalized = normalizeRecords(parsed)
+            if (normalized === null)
                 throw new Error("Invalid snippet configuration")
-            snippets = normalizeIds(records)
+            snippets = normalizeIds(normalized)
             configurationValid = true
         } catch (error) {
             // Preserve the original configuration string for recovery.
@@ -193,15 +204,19 @@ Item {
     }
 
     function incrementUsage(index) {
+        if (!configurationValid || !snippets[index])
+            return
         var snippetsArray = snippets.slice()
-        if (snippetsArray[index]) {
-            snippetsArray[index] = Object.assign({}, snippetsArray[index], {
-                usageCount: Math.min(Number.MAX_SAFE_INTEGER, snippetsArray[index].usageCount + 1),
-                isNew: false,
-                lastUsedAt: Date.now()
-            })
-            updateModel(snippetsArray)
-        }
+        var now = Date.now()
+        // Preserve the validation invariant even if the system clock is invalid.
+        if (!validTimestamp(now))
+            return
+        snippetsArray[index] = Object.assign({}, snippetsArray[index], {
+            usageCount: Math.min(Number.MAX_SAFE_INTEGER, snippetsArray[index].usageCount + 1),
+            isNew: false,
+            lastUsedAt: now
+        })
+        commitNormalized(snippetsArray)
     }
 
     function recordUse(id) {
@@ -211,11 +226,11 @@ Item {
     }
 
     function markAsUsed(index) {
+        if (!configurationValid || !snippets[index] || !snippets[index].isNew)
+            return
         var snippetsArray = snippets.slice()
-        if (snippetsArray[index] && snippetsArray[index].isNew) {
-            snippetsArray[index].isNew = false
-            updateModel(snippetsArray)
-        }
+        snippetsArray[index] = Object.assign({}, snippetsArray[index], { isNew: false })
+        commitNormalized(snippetsArray)
     }
 
     function setFavorite(id, favorite) {
@@ -228,7 +243,7 @@ Item {
             return true
         var updated = snippets.slice()
         updated[index] = Object.assign({}, updated[index], { favorite: favorite })
-        return updateModel(updated)
+        return commitNormalized(updated)
     }
 
     function getSortedSnippets(sortMode) {
@@ -364,8 +379,26 @@ Item {
         var records = normalizeRecords(newSnippets)
         if (records === null)
             return false
-        snippets = normalizeIds(records)
-        configValue = JSON.stringify(snippets)
-        return true
+        return commitNormalized(normalizeIds(records))
+    }
+
+    // Only use this path with already validated records and unchanged unique IDs.
+    // Metadata-only mutations above preserve that invariant; imports/edits use
+    // updateModel(), and externally loaded JSON uses onConfigValueChanged.
+    function commitNormalized(records) {
+        if (!configurationValid)
+            return false
+        var serialized = JSON.stringify(records)
+        if (serialized === configValue)
+            return true
+
+        preparedWrite = { config: serialized, records: records }
+        try {
+            configValue = serialized
+        } finally {
+            // Do not let a later external change reuse a prepared snapshot.
+            preparedWrite = null
+        }
+        return configValue === serialized
     }
 }
