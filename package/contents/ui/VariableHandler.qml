@@ -6,17 +6,16 @@
 import QtQuick
 
 QtObject {
-    function processVariables(text) {
-        if (!plasmoid.configuration.handleVariables) {
-            return text
-        }
+    property bool processingEnabled: true
 
-        var now = new Date()
+    function processVariables(text, now = new Date(), locale = Qt.locale()) {
+        if (!processingEnabled)
+            return text
 
         var replacements = {
-            "{DATE}"           : Qt.formatDate(now, Qt.LocaleDate),
-            "{TIME}"           : Qt.formatTime(now, Qt.LocaleTime),
-            "{DATETIME}"       : Qt.formatDateTime(now, Qt.DefaultLocaleShortDate),
+            "{DATE}"           : now.toLocaleDateString(locale, Locale.ShortFormat),
+            "{TIME}"           : now.toLocaleTimeString(locale, Locale.ShortFormat),
+            "{DATETIME}"       : now.toLocaleString(locale, Locale.ShortFormat),
             "{ISO_DATE}"       : Qt.formatDate(now, "yyyy-MM-dd"),
             "{ISO_TIME}"       : Qt.formatTime(now, "HH:mm:ss"),
             "{ISO_TIME_DASHED}": Qt.formatTime(now, "HH-mm-ss"),
@@ -31,13 +30,9 @@ QtObject {
             "{AMPM}"           : Qt.formatTime(now, "AP")
         }
 
-        var result = text
-        for (var key in replacements) {
-            if (replacements.hasOwnProperty(key)) {
-                var value = replacements[key]
-                result = result.replace(new RegExp(key, 'g'), value)
-            }
-        }
-        return result
+        // Leave double-braced placeholders untouched for custom templates.
+        return text.replace(/\{\{[^{}]*\}\}|\{[A-Z0-9_]+\}/g, function(token) {
+            return replacements.hasOwnProperty(token) ? replacements[token] : token
+        })
     }
 }
