@@ -59,8 +59,7 @@ Dialog {
         } else {
             snippetModel.set(editIndex, {
                 title: titleText,
-                text: snippetText,
-                usageCount: snippetModel.get(editIndex).usageCount || 0
+                text: snippetText
             })
         }
     }
