@@ -17,6 +17,30 @@ Item {
     // Local configuration keeps the existing behavior when no gate is supplied.
     property var beforeCommit: null
 
+    // Only stores persisted as a single KConfig entry use this budget.
+    // File-backed stores have their own native size limit.
+    property bool enforceLocalConfigBudget: false
+    readonly property int localConfigBudget: 1024 * 1024
+    signal localConfigBudgetRejected()
+
+    function fitsLocalConfigBudget(serialized) {
+        // Conservative upper bound for the escaped UTF-8 KConfig line.
+        // JSON.stringify escapes controls and quotes; KConfig escapes
+        // backslashes again. Count non-ASCII UTF-16 units as three bytes
+        // (a surrogate pair is at most four UTF-8 bytes). Include room
+        // for the key, entry flags and line ending.
+        var bytes = 64
+        for (var i = 0; i < serialized.length; i++) {
+            var unit = serialized.charCodeAt(i)
+            bytes += unit < 32 || unit === 127 ? 4
+                : unit === 92 ? 2
+                : unit < 128 ? 1 : 3
+            if (bytes > localConfigBudget)
+                return false
+        }
+        return true
+    }
+
     // A prepared internal write is valid only for its exact serialized value.
     // External configuration changes must always pass normal validation.
     property var preparedWrite: null
@@ -518,6 +542,10 @@ Item {
         if (serialized === configValue)
             return true
 
+        if (enforceLocalConfigBudget && !fitsLocalConfigBudget(serialized)) {
+            localConfigBudgetRejected()
+            return false
+        }
         if (beforeCommit !== null && !beforeCommit(records))
             return false
 
