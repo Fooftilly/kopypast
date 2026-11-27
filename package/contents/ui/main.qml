@@ -106,6 +106,18 @@ PlasmoidItem {
     fullRepresentation: ColumnLayout {
         id: popupContent
 
+        property string categoryKey: ""
+        readonly property var categoryOptions: categoryFilter.options(snippetModel.snippets, i18n("All categories"), i18n("Uncategorized"))
+
+        Local.CategoryFilter {
+            id: categoryFilter
+        }
+
+        onCategoryOptionsChanged: {
+            if (!categoryOptions.some(function(option) { return option.key === categoryKey }))
+                categoryKey = ""
+        }
+
         function focusOnOpen() {
             if (!root.isPanel || !root.expanded || !visible)
                 return
@@ -206,14 +218,33 @@ PlasmoidItem {
             focus: plasmoid.configuration.showSearchField && plasmoid.configuration.useKbdNavigation
         }
 
+        ComboBox {
+            id: categoryBox
+            Layout.fillWidth: true
+            Layout.leftMargin: Kirigami.Units.smallSpacing
+            Layout.rightMargin: Kirigami.Units.smallSpacing
+            visible: popupContent.categoryOptions.length > 1
+            model: popupContent.categoryOptions
+            textRole: "label"
+            valueRole: "key"
+            currentIndex: Math.max(0, popupContent.categoryOptions.findIndex(function(option) {
+                return option.key === popupContent.categoryKey
+            }))
+            Accessible.name: i18n("Filter by category")
+            onActivated: function(index) {
+                popupContent.categoryKey = popupContent.categoryOptions[index].key
+            }
+        }
+
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
             ListView {
                 id: snippetList
-                property var filteredModel: snippetModel.getFilteredSnippets(
-                    plasmoid.configuration.sortMode, root.searchQuery)
+                property var filteredModel: categoryFilter.apply(
+                    snippetModel.getFilteredSnippets(plasmoid.configuration.sortMode, root.searchQuery),
+                    popupContent.categoryKey)
 
                 model: filteredModel
                 clip: true
@@ -248,7 +279,7 @@ PlasmoidItem {
 
                 Kirigami.PlaceholderMessage {
                     anchors.centerIn: parent
-                    visible: snippetModel.count === 0 && !root.searchQuery
+                    visible: snippetModel.count === 0
                     width: parent.width - (Kirigami.Units.largeSpacing * 4)
                     icon.source: Kirigami.Theme.textColor.hslLightness < 0.5
                         ? Qt.resolvedUrl("../icons/io.github.fooftilly.kopypast-light.svg").toString()
@@ -259,12 +290,12 @@ PlasmoidItem {
 
                 Kirigami.PlaceholderMessage {
                     anchors.centerIn: parent
-                    visible: snippetList.count === 0 && root.searchQuery
+                    visible: snippetModel.count > 0 && snippetList.count === 0
                     width: parent.width - (Kirigami.Units.largeSpacing * 4)
                     icon.name: "search"
                     icon.color: Kirigami.Theme.textColor
                     text: i18n("No matching snippets")
-                    explanation: i18n("Try a different search term")
+                    explanation: i18n("Try a different search term or category")
                 }
 
                 delegate: Kirigami.SwipeListItem {
