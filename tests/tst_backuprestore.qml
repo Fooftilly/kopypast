@@ -39,6 +39,7 @@ TestCase {
             { tag: "negative-count", content: '[{"title":"A","text":"text","usageCount":-1}]', status: "invalid-record" },
             { tag: "fractional-count", content: '[{"title":"A","text":"text","usageCount":1.5}]', status: "invalid-record" },
             { tag: "string-count", content: '[{"title":"A","text":"text","usageCount":"1"}]', status: "invalid-record" },
+            { tag: "bad-id", content: '[{"title":"A","text":"text","id":12}]', status: "invalid-record" },
             { tag: "bad-flag", content: '[{"title":"A","text":"text","isNew":"false"}]', status: "invalid-record" },
             { tag: "invalid-last", content: '[{"title":"A","text":"valid"},null]', status: "invalid-record" }
         ]
