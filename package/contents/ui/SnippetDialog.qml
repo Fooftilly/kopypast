@@ -52,6 +52,8 @@ Dialog {
     function createSnippet() {
         editIndex = -1
         titleText = ""
+        categoryField.text = ""
+        tagsField.text = ""
         snippetText = plasmoid.configuration.defaultTemplate || ""
         open()
     }
@@ -60,6 +62,8 @@ Dialog {
         editIndex = index
         var item = snippetModel.get(index)
         titleText = item.title
+        categoryField.text = item.category
+        tagsField.text = item.tags.join(", ")
         snippetText = item.text
         open()
     }
@@ -69,12 +73,16 @@ Dialog {
             snippetModel.append({
                 title: titleText,
                 text: snippetText,
-                usageCount: 0
+                usageCount: 0,
+                category: categoryField.text,
+                tags: tagsField.text.split(",")
             })
         } else {
             snippetModel.set(editIndex, {
                 title: titleText,
-                text: snippetText
+                text: snippetText,
+                category: categoryField.text,
+                tags: tagsField.text.split(",")
             })
         }
     }
@@ -91,6 +99,20 @@ Dialog {
                 if (!previewing)
                     textArea.forceActiveFocus()
             }
+        }
+
+        TextField {
+            id: categoryField
+            Layout.fillWidth: true
+            placeholderText: i18n("Category (optional)")
+            Accessible.name: placeholderText
+        }
+
+        TextField {
+            id: tagsField
+            Layout.fillWidth: true
+            placeholderText: i18n("Tags (comma-separated, optional)")
+            Accessible.name: placeholderText
         }
 
         ScrollView {

@@ -32,6 +32,8 @@ SimpleKCM {
         var duplicatedSnippet = {
             title: originalSnippet.title + " " + i18n("(copy)"),
             text: originalSnippet.text,
+            category: originalSnippet.category,
+            tags: originalSnippet.tags,
             usageCount: 0
         }
         snippetModel.append(duplicatedSnippet)
@@ -114,7 +116,8 @@ SimpleKCM {
                         ItemDelegate {
                             id: snippetDelegate
                             width: parent.width
-                            implicitHeight: Kirigami.Units.iconSizes.large + Kirigami.Units.smallSpacing
+                            implicitHeight: Math.max(Kirigami.Units.iconSizes.large + Kirigami.Units.smallSpacing,
+                                contentItem.implicitHeight + topPadding + bottomPadding)
 
                             contentItem: RowLayout {
                                 spacing: Kirigami.Units.smallSpacing
@@ -134,6 +137,7 @@ SimpleKCM {
                                     Label {
                                         Layout.fillWidth: true
                                         text: modelData.title
+                                        textFormat: Text.PlainText
                                         elide: Text.ElideRight
                                         maximumLineCount: 1
                                     }
@@ -141,10 +145,22 @@ SimpleKCM {
                                     Label {
                                         Layout.fillWidth: true
                                         text: modelData.text
+                                        textFormat: Text.PlainText
                                         elide: Text.ElideRight
                                         maximumLineCount: 1
                                         opacity: 0.7
                                         font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        visible: modelData.category !== "" || modelData.tags.length > 0
+                                        text: [modelData.category, modelData.tags.join(", ")].filter(function(value) { return value !== "" }).join(" · ")
+                                        textFormat: Text.PlainText
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                        font: Kirigami.Theme.smallFont
+                                        opacity: 0.7
                                     }
                                 }
 

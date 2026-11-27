@@ -45,6 +45,26 @@ Item {
             || (Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000000)
     }
 
+    function normalizedTags(value) {
+        if (value === undefined)
+            return []
+        if (!Array.isArray(value))
+            return null
+        var seen = new Set()
+        var tags = []
+        for (var i = 0; i < value.length; i++) {
+            if (typeof value[i] !== "string" || /[,\r\n]/.test(value[i]))
+                return null
+            var tag = value[i].trim().normalize("NFC")
+            var key = tag.toLowerCase()
+            if (tag && !seen.has(key)) {
+                seen.add(key)
+                tags.push(tag)
+            }
+        }
+        return tags
+    }
+
     function normalizeRecords(data) {
         if (!Array.isArray(data))
             return null
@@ -58,7 +78,11 @@ Item {
                     || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")
                     || (entry.favorite !== undefined && typeof entry.favorite !== "boolean")
                     || !validTimestamp(entry.createdAt) || !validTimestamp(entry.lastUsedAt)
+                    || (entry.category !== undefined && (typeof entry.category !== "string" || /[\r\n]/.test(entry.category)))
                     || (entry.id !== undefined && (typeof entry.id !== "string" || entry.id.length === 0)))
+                return null
+            var tags = normalizedTags(entry.tags)
+            if (tags === null)
                 return null
             records.push({
                 id: entry.id,
@@ -68,7 +92,9 @@ Item {
                 isNew: entry.isNew === undefined ? false : entry.isNew,
                 favorite: entry.favorite === true,
                 createdAt: entry.createdAt === undefined ? null : entry.createdAt,
-                lastUsedAt: entry.lastUsedAt === undefined ? null : entry.lastUsedAt
+                lastUsedAt: entry.lastUsedAt === undefined ? null : entry.lastUsedAt,
+                category: entry.category === undefined ? "" : entry.category.trim().normalize("NFC"),
+                tags: tags
             })
         }
         return records
@@ -134,7 +160,9 @@ Item {
             isNew: true,
             favorite: false,
             createdAt: Date.now(),
-            lastUsedAt: null
+            lastUsedAt: null,
+            category: item.category,
+            tags: item.tags
         })
         updateModel(snippetsArray)
     }
@@ -143,10 +171,12 @@ Item {
         var snippetsArray = snippets.slice()
         if (!snippetsArray[index])
             return
-        snippetsArray[index] = Object.assign({}, snippetsArray[index], {
-            title: item.title,
-            text: item.text
-        })
+        var changes = { title: item.title, text: item.text }
+        if (item.category !== undefined)
+            changes.category = item.category
+        if (item.tags !== undefined)
+            changes.tags = item.tags
+        snippetsArray[index] = Object.assign({}, snippetsArray[index], changes)
         updateModel(snippetsArray)
     }
 
@@ -303,14 +333,17 @@ Item {
         if (!search)
             return sorted
 
-        // All words must match, in any order, across title and body.
+        // All words must match, in any order, across title, body and metadata.
         // Normalize equivalent Unicode spellings without stripping accents.
         var words = search.split(/\s+/)
         return sorted.filter(function(snippet) {
             var title = snippet.title.normalize("NFC").toLowerCase()
             var body = snippet.text.normalize("NFC").toLowerCase()
+            var category = snippet.category.toLowerCase()
+            var tags = snippet.tags.map(function(tag) { return tag.toLowerCase() })
             return words.every(function(word) {
-                return title.includes(word) || body.includes(word)
+                return title.includes(word) || body.includes(word) || category.includes(word)
+                    || tags.some(function(tag) { return tag.includes(word) })
             })
         })
     }
