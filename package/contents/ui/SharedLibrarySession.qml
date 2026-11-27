@@ -41,7 +41,18 @@ Item {
         return false
     }
 
+    function closeLibrary() {
+        status = "closed"
+        revision = ""
+        libraryName = ""
+        recoveryText = ""
+        store.loadFromConfig("[]")
+    }
+
     function openLibrary(name) {
+        // Never expose records from another library if the new read fails.
+        if (libraryName !== name)
+            store.loadFromConfig("[]")
         libraryName = name
         revision = ""
         status = "loading"
@@ -72,6 +83,8 @@ Item {
     // Explicit creation from a validated local snapshot. Do not replace an
     // existing library, even if it is empty or damaged.
     function createLibrary(name, records) {
+        if (libraryName !== name)
+            store.loadFromConfig("[]")
         libraryName = name
         revision = ""
         status = "loading"
