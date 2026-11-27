@@ -45,22 +45,13 @@ PlasmoidItem {
         onTriggered: root.isCopied = false
     }
 
-    Timer {
-        id: closeTimer
-        interval: closeDelayValues[Math.max(0, Math.min(closeDelayValues.length - 1, plasmoid.configuration.closeAfterCopy))]
-        onTriggered: root.expanded = false
-    }
-
-    function closeAfterCopy() {
-        if (!isPanel || plasmoid.configuration.isPinned) {
-            return
-        }
-
-        if (closeTimer.interval > 0) {
-            closeTimer.restart()
-        } else {
-            root.expanded = false
-        }
+    Local.PopupCloseController {
+        id: closeController
+        expanded: root.expanded
+        pinned: plasmoid.configuration.isPinned
+        panel: root.isPanel
+        delay: closeDelayValues[Math.max(0, Math.min(closeDelayValues.length - 1, plasmoid.configuration.closeAfterCopy))]
+        onCloseRequested: root.expanded = false
     }
 
     compactRepresentation: Item {
@@ -83,6 +74,29 @@ PlasmoidItem {
     }
 
     fullRepresentation: ColumnLayout {
+        id: popupContent
+
+        function copySnippet(snippet) {
+            if (!snippet)
+                return
+
+            var processedText = variableHandler.processVariables(snippet.text)
+            KirigamiPrivate.CopyHelperPrivate.copyTextToClipboard(processedText)
+            snippetModel.recordUse(snippet.id)
+
+            if (plasmoid.configuration.isPinned || !isPanel) {
+                root.isCopied = true
+                resetTimer.restart()
+            }
+
+            if (isPanel && !plasmoid.configuration.isPinned) {
+                closeController.requestClose()
+            } else if (plasmoid.configuration.clearSearchOnCopy) {
+                searchField.clear()
+                root.searchQuery = ""
+            }
+        }
+
         Layout.minimumWidth: Kirigami.Units.gridUnit * 14
         Layout.minimumHeight: Kirigami.Units.gridUnit * 18
         Layout.preferredWidth: Kirigami.Units.gridUnit * 20
@@ -105,6 +119,17 @@ PlasmoidItem {
                 clear()
                 root.expanded = false
             }
+            Keys.onPressed: function(event) {
+                if (!plasmoid.configuration.useKbdNavigation)
+                    return
+                if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+                    snippetList.selectRelative(event.key === Qt.Key_Up ? -1 : 1)
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    snippetList.handleSelection()
+                    event.accepted = true
+                }
+            }
             visible: plasmoid.configuration.showSearchField
             enabled: visible && snippetModel.count > 0
             focus: plasmoid.configuration.showSearchField && plasmoid.configuration.useKbdNavigation
@@ -123,34 +148,30 @@ PlasmoidItem {
                 clip: true
                 focus: plasmoid.configuration.useKbdNavigation && !searchField.enabled
                 keyNavigationEnabled: plasmoid.configuration.useKbdNavigation
-                currentIndex: plasmoid.expanded ? 0 : -1
+                currentIndex: -1
 
-                function handleSelection() {
-                    if (currentIndex >= 0) {
-                        var snippet = model[currentIndex]
-                        var processedText = variableHandler.processVariables(snippet.text)
-                        KirigamiPrivate.CopyHelperPrivate.copyTextToClipboard(processedText)
-
-                        if (plasmoid.configuration.isPinned || !isPanel) {
-                            root.isCopied = true
-                            resetTimer.restart()
-                        }
-                        if (isPanel) {
-                            if (!plasmoid.configuration.isPinned) {
-                                closeAfterCopy()
-                            } else if (plasmoid.configuration.clearSearchOnCopy) {
-                                searchField.clear()
-                                root.searchQuery = ""
-                            }
-                        } else if (plasmoid.configuration.clearSearchOnCopy) {
-                            searchField.clear()
-                            root.searchQuery = ""
-                        }
-
-                        snippetModel.recordUse(snippet.id)
-                    }
+                function resetSelection() {
+                    currentIndex = count > 0 ? 0 : -1
                 }
 
+                function selectRelative(direction) {
+                    if (count === 0) {
+                        currentIndex = -1
+                        return
+                    }
+                    currentIndex = currentIndex < 0 ? 0 : Math.max(0, Math.min(count - 1, currentIndex + direction))
+                    positionViewAtIndex(currentIndex, ListView.Contain)
+                }
+
+                function handleSelection() {
+                    if (plasmoid.configuration.useKbdNavigation && currentIndex >= 0 && currentIndex < count)
+                        popupContent.copySnippet(filteredModel[currentIndex])
+                }
+
+                onCountChanged: resetSelection()
+                onModelChanged: resetSelection()
+                Component.onCompleted: resetSelection()
+                Keys.enabled: plasmoid.configuration.useKbdNavigation
                 Keys.onEnterPressed: handleSelection()
                 Keys.onReturnPressed: handleSelection()
 
@@ -225,29 +246,7 @@ PlasmoidItem {
                         }
                     }
 
-                    onClicked: {
-                        var snippet = modelData
-                        var processedText = variableHandler.processVariables(snippet.text)
-                        KirigamiPrivate.CopyHelperPrivate.copyTextToClipboard(processedText)
-
-                        if (plasmoid.configuration.isPinned || !isPanel) {
-                            root.isCopied = true
-                            resetTimer.restart()
-                        }
-                        if (isPanel) {
-                            if (!plasmoid.configuration.isPinned) {
-                                closeAfterCopy()
-                            } else if (plasmoid.configuration.clearSearchOnCopy) {
-                                searchField.clear()
-                                root.searchQuery = ""
-                            }
-                        } else if (plasmoid.configuration.clearSearchOnCopy) {
-                            searchField.clear()
-                            root.searchQuery = ""
-                        }
-
-                        snippetModel.recordUse(snippet.id)
-                    }
+                    onClicked: popupContent.copySnippet(modelData)
                 }
             }
         }
@@ -255,7 +254,15 @@ PlasmoidItem {
         Connections {
             target: root
             function onExpandedChanged() {
-                if (!root.expanded && !plasmoid.configuration.isPinned) {
+                if (root.expanded) {
+                    snippetList.resetSelection()
+                    if (plasmoid.configuration.useKbdNavigation) {
+                        if (searchField.enabled)
+                            searchField.forceActiveFocus()
+                        else
+                            snippetList.forceActiveFocus()
+                    }
+                } else if (!plasmoid.configuration.isPinned) {
                     snippetList.currentIndex = -1
                     snippetList.positionViewAtBeginning()
                     if (plasmoid.configuration.clearSearchOnCopy) {
