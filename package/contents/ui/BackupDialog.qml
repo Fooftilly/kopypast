@@ -22,8 +22,12 @@ Dialog {
 
     property bool isBackup: true
     property string backupContent: snippetModel.configurationValid
-        ? JSON.stringify(snippetModel.snippets, null, 2)
+        ? backupFormat.encode(snippetModel.snippets)
         : snippetModel.configValue
+
+    BackupFormat {
+        id: backupFormat
+    }
     property bool isValid: !isBackup && textArea.text !== ""
     property bool initializing: true
 
@@ -57,7 +61,15 @@ Dialog {
         if (isBackup)
             return
 
-        var result = snippetModel.restoreBackup(textArea.text, plasmoid.configuration.maxSnippets)
+        var decoded = backupFormat.decode(textArea.text)
+        if (decoded.status !== "ok") {
+            showNotification(decoded.status === "unsupported-version"
+                ? i18n("Unsupported backup version")
+                : i18n("Invalid backup format"))
+            return
+        }
+
+        var result = snippetModel.restoreBackup(decoded.content, plasmoid.configuration.maxSnippets)
         switch (result.status) {
         case "invalid-config":
             showNotification(i18n("Invalid snippet configuration"))
