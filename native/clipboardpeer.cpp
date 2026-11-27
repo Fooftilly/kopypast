@@ -6,8 +6,9 @@
 #include <QEvent>
 #include <QGuiApplication>
 #include <QMimeData>
+#include <QPainter>
+#include <QRasterWindow>
 #include <QTimer>
-#include <QWindow>
 
 #include <cstdio>
 #include <memory>
@@ -19,16 +20,22 @@ void marker(const char *value)
     std::fflush(stdout);
 }
 
-class PeerWindow : public QWindow
+// Wayland compositors map a surface only after it commits a buffer, so a
+// bare QWindow never receives pointer focus or activation. Paint a frame.
+class PeerWindow : public QRasterWindow
 {
 public:
-    bool clicked = false;
+    int clicks = 0;
 protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter(this).fillRect(QRect(QPoint(), size()), Qt::white);
+    }
     bool event(QEvent *event) override
     {
         if (event->type() == QEvent::MouseButtonRelease)
-            clicked = true;
-        return QWindow::event(event);
+            ++clicks;
+        return QRasterWindow::event(event);
     }
 };
 }
@@ -56,6 +63,8 @@ int main(int argc, char **argv)
 
     bool waiting = false;
     bool started = false;
+    bool sentinel = false;
+    int sentinelClicks = 0;
     QElapsedTimer readTime;
     QTimer timer;
     timer.setInterval(50);
@@ -68,14 +77,23 @@ int main(int argc, char **argv)
                     marker(writer ? "KOPYPAST_NATIVE_WRITER_WAITING" : "KOPYPAST_NATIVE_READER_WAITING");
                     waiting = true;
                 }
-                if (!window.clicked || !window.isActive())
+                if (window.clicks == 0 || !window.isActive())
                     return;
             }
-            started = true;
-            if (writer) {
+            if (writer && !sentinel) {
                 // Set a nonempty sentinel first; copying an empty string
                 // must not leave the previous value available.
                 QGuiApplication::clipboard()->setText(QStringLiteral("previous clipboard contents"));
+                sentinel = true;
+                sentinelClicks = window.clicks;
+            }
+            // Compositors such as Weston ignore a second selection that
+            // reuses the input serial of the current one. A user's later copy
+            // comes from new input, so wait for another click on Wayland.
+            if (writer && wayland && window.clicks == sentinelClicks)
+                return;
+            started = true;
+            if (writer) {
                 {
                     Clipboard candidate;
                     if (!candidate.copyText(expected)) {
