@@ -26,7 +26,13 @@ PlasmoidItem {
 
     Local.SnippetModel {
         id: snippetModel
-        Component.onCompleted: loadFromConfig(plasmoid.configuration.snippets)
+        Component.onCompleted: {
+            loadFromConfig(plasmoid.configuration.snippets)
+            if (plasmoid.configuration.sortMode === -1) {
+                plasmoid.configuration.sortMode = plasmoid.configuration.sortByUsage ? 1 : 0
+                plasmoid.configuration.sortByUsage = false
+            }
+        }
         onConfigValueChanged: plasmoid.configuration.snippets = configValue
     }
 
@@ -203,7 +209,7 @@ PlasmoidItem {
             ListView {
                 id: snippetList
                 property var filteredModel: snippetModel.getFilteredSnippets(
-                    plasmoid.configuration.sortByUsage, root.searchQuery)
+                    plasmoid.configuration.sortMode, root.searchQuery)
 
                 model: filteredModel
                 clip: true

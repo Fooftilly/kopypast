@@ -20,7 +20,7 @@ SimpleKCM {
     property alias cfg_defaultTemplate: defaultTemplate.text
     property alias cfg_maxSnippets: maxSnippetsSpinner.value
     property alias cfg_closeAfterCopy: closeAfterCopyCombo.currentIndex
-    property alias cfg_sortByUsage: sortByUsage.checked
+    property int cfg_sortMode: -1
     property alias cfg_useKbdNavigation: useKbdNavigation.checked
     property alias cfg_clearSearchOnCopy: clearSearchOnCopy.checked
     property alias cfg_handleVariables: handleVariables.checked
@@ -262,16 +262,29 @@ SimpleKCM {
             ColumnLayout {
                 Layout.leftMargin: Kirigami.Units.largeSpacing
 
-                CheckBox {
-                    id: sortByUsage
-                    text: i18n("Sort by usage")
+                RowLayout {
+                    Label {
+                        text: i18n("Sort snippets:")
+                    }
+
+                    ComboBox {
+                        id: sortMode
+                        model: [
+                            i18n("Manual order"),
+                            i18n("Most used"),
+                            i18n("Recently used"),
+                            i18n("Recently created"),
+                            i18n("Alphabetical")
+                        ]
+                        currentIndex: cfg_sortMode >= 0 && cfg_sortMode < count ? cfg_sortMode : 0
+                        onActivated: function(index) { cfg_sortMode = index }
+                    }
                 }
 
                 Label {
-                    text: i18n("Arrange snippets by how often they are used")
+                    text: i18n("Favorites always appear first")
                     font: Kirigami.Theme.smallFont
                     opacity: 0.7
-                    leftPadding: sortByUsage.indicator.width + sortByUsage.spacing
                 }
             }
 
