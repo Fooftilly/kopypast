@@ -37,7 +37,7 @@ jobs:
               echo "Missing license header: $file"
               exit 1
             fi
-          done < <(find package/contents tests -type f \( -name '*.qml' -o -name '*.xml' \) -print0)
+          done < <(find package/contents tests integration -type f \( -name '*.qml' -o -name '*.xml' \) -print0)
           jq -e '.KPackageStructure == "Plasma/Applet" and
             (.KPlugin | .Authors and .Name and .Description and .Icon and .Version and .License and .Id)' package/metadata.json
           xmllint --noout package/contents/config/main.xml
@@ -48,7 +48,7 @@ jobs:
           while IFS= read -r -d '' file; do
             echo "Checking $file"
             /usr/lib/qt6/bin/qmlformat "$file" >/dev/null
-          done < <(find package/contents tests -type f -name '*.qml' -print0)
+          done < <(find package/contents tests integration -type f -name '*.qml' -print0)
 
       - name: Validate translation catalogs
         shell: bash
@@ -92,3 +92,27 @@ jobs:
           path: io.github.fooftilly.kopypast.plasmoid
           if-no-files-found: error
           retention-days: 7
+
+  plasma-runtime:
+    name: Plasma runtime smoke tests
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 20
+    steps:
+      - name: Install Plasma and test dependencies
+        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth xdotool jq dbus
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Record Plasma versions
+        run: pacman -Q plasma-sdk plasma-desktop plasma-workspace libplasma kirigami qt6-base qt6-declarative
+
+      - name: Install and load widget, test clipboard
+        env:
+          QT_QPA_PLATFORM: xcb
+          QT_QUICK_BACKEND: software
+        run: |
+          test -f /usr/share/plasma/plasmoids/org.kde.desktopcontainment/metadata.json
+          xvfb-run -a dbus-run-session -- bash integration/smoke.sh
