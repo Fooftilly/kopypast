@@ -52,81 +52,43 @@ Dialog {
     }
 
     onAccepted: {
-        if (!isBackup) {
-            try {
-                var data = JSON.parse(textArea.text)
-                if (Array.isArray(data)) {
-                    if (data.length === 0) {
-                        showNotification(i18n("Backup contains no snippets"))
-                        return
-                    }
+        if (isBackup)
+            return
 
-                    for (var i = 0; i < data.length; i++) {
-                        var snippet = data[i]
-                        if (!snippet.title || !snippet.text) {
-                            showNotification(i18n("Invalid snippet format"))
-                            return
-                        }
-                    }
-
-                    var validSnippets = []
-                    var duplicates = []
-
-                    for (var i = 0; i < data.length; i++) {
-                        var snippet = data[i]
-                        var isDuplicate = false
-                        for (var j = 0; j < snippetModel.snippets.length; j++) {
-                            var existing = snippetModel.snippets[j]
-                            if (existing.title === snippet.title && existing.text === snippet.text) {
-                                duplicates.push(snippet.title)
-                                isDuplicate = true
-                                break
-                            }
-                        }
-                        if (!isDuplicate) {
-                            validSnippets.push(snippet)
-                        }
-                    }
-
-                    if (validSnippets.length === 0) {
-                        showNotification(i18n("All snippets are duplicates"))
-                        return
-                    }
-
-                    if (validSnippets.length + snippetModel.snippets.length > plasmoid.configuration.maxSnippets) {
-                        var remaining = plasmoid.configuration.maxSnippets - snippetModel.snippets.length
-                        if (remaining <= 0) {
-                            showNotification(
-                                i18n("Cannot restore snippets: maximum limit (%1) reached",
-                                     plasmoid.configuration.maxSnippets))
-                            return
-                        }
-                        validSnippets.splice(remaining)
-                        showNotification(
-                            i18np("Only restored %1 snippet due to maximum limit",
-                                 "Only restored %1 snippets due to maximum limit",
-                                 remaining))
-                    } else if (duplicates.length > 0) {
-                        showNotification(
-                            i18np("Restored %1 snippet, skipped %2 duplicate(s)",
-                                 "Restored %1 snippets, skipped %2 duplicate(s)",
-                                 validSnippets.length, duplicates.length))
-                    } else {
-                        showNotification(
-                            i18np("Successfully restored %1 snippet",
-                                 "Successfully restored %1 snippets",
-                                 validSnippets.length))
-                    }
-
-                    var updatedSnippets = snippetModel.snippets.slice().concat(validSnippets)
-                    snippetModel.snippets = updatedSnippets
-                    snippetModel.configValue = JSON.stringify(updatedSnippets)
-                } else {
-                    showNotification(i18n("Invalid backup format"))
-                }
-            } catch (e) {
-                showNotification(i18n("Invalid backup format"))
+        var result = snippetModel.restoreBackup(textArea.text, plasmoid.configuration.maxSnippets)
+        switch (result.status) {
+        case "invalid-format":
+            showNotification(i18n("Invalid backup format"))
+            break
+        case "invalid-record":
+            showNotification(i18n("Invalid snippet format"))
+            break
+        case "empty":
+            showNotification(i18n("Backup contains no snippets"))
+            break
+        case "duplicates":
+            showNotification(i18n("All snippets are duplicates"))
+            break
+        case "limit":
+            showNotification(i18n("Cannot restore snippets: maximum limit (%1) reached",
+                                  plasmoid.configuration.maxSnippets))
+            break
+        case "partial":
+            showNotification(i18np("Only restored %1 snippet due to maximum limit",
+                                   "Only restored %1 snippets due to maximum limit",
+                                   result.count))
+            break
+        case "restored":
+            if (result.duplicates > 0) {
+                showNotification(i18np("Restored %1 snippet, skipped %2 duplicate(s)",
+                                       "Restored %1 snippets, skipped %2 duplicate(s)",
+                                       result.count, result.duplicates))
+            } else {
+                showNotification(i18np("Successfully restored %1 snippet",
+                                       "Successfully restored %1 snippets",
+                                       result.count))
             }
+            break
         }
     }
 
