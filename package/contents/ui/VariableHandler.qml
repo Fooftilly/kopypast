@@ -8,7 +8,32 @@ import QtQuick
 QtObject {
     property bool processingEnabled: true
 
-    function processVariables(text, now = new Date(), locale = Qt.locale()) {
+    // Recognize escaped tokens first, then complete double-braced placeholders.
+    function tokenPattern() {
+        return /\\(?:\{\{[^{}]*\}\}|\{[A-Z0-9_]+\})|\{\{[^{}]*\}\}|\{[A-Z0-9_]+\}/g
+    }
+
+    function placeholderName(token) {
+        return /^\{\{[A-Z][A-Z0-9_]*\}\}$/.test(token) ? token.slice(2, -2) : ""
+    }
+
+    function placeholderNames(text) {
+        if (!processingEnabled)
+            return []
+        var names = []
+        var seen = new Set()
+        text.replace(tokenPattern(), function(token) {
+            var name = placeholderName(token)
+            if (name && !seen.has(name)) {
+                seen.add(name)
+                names.push(name)
+            }
+            return token
+        })
+        return names
+    }
+
+    function processVariables(text, now = new Date(), locale = Qt.locale(), values = {}) {
         if (!processingEnabled)
             return text
 
@@ -30,8 +55,17 @@ QtObject {
             "{AMPM}"           : Qt.formatTime(now, "AP")
         }
 
-        // Leave double-braced placeholders untouched for custom templates.
-        return text.replace(/\{\{[^{}]*\}\}|\{[A-Z0-9_]+\}/g, function(token) {
+        // A single pass prevents user-entered text from being interpreted as a token.
+        return text.replace(tokenPattern(), function(token) {
+            if (token.startsWith("\\")) {
+                var literal = token.slice(1)
+                if (placeholderName(literal) || replacements.hasOwnProperty(literal))
+                    return literal
+                return token
+            }
+            var name = placeholderName(token)
+            if (name && Object.prototype.hasOwnProperty.call(values, name))
+                return String(values[name])
             return replacements.hasOwnProperty(token) ? replacements[token] : token
         })
     }

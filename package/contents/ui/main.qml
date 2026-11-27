@@ -113,12 +113,25 @@ PlasmoidItem {
         }
 
         function copySnippet(snippet) {
-            if (!snippet)
+            if (!snippet || templateDialog.visible)
                 return
 
-            var processedText = variableHandler.processVariables(snippet.text)
+            var names = variableHandler.placeholderNames(snippet.text)
+            if (names.length > 0) {
+                closeController.cancelPending()
+                templateDialog.openTemplate(snippet.id, snippet.text, names)
+                return
+            }
+
+            copyResolvedSnippet(snippet.id, variableHandler.processVariables(snippet.text))
+        }
+
+        function copyResolvedSnippet(snippetId, processedText) {
+            if (!snippetModel.configurationValid || snippetModel.indexOfId(snippetId) < 0)
+                return
+
             KirigamiPrivate.CopyHelperPrivate.copyTextToClipboard(processedText)
-            snippetModel.recordUse(snippet.id)
+            snippetModel.recordUse(snippetId)
 
             if (plasmoid.configuration.isPinned || !isPanel) {
                 root.isCopied = true
@@ -130,6 +143,18 @@ PlasmoidItem {
             } else if (plasmoid.configuration.clearSearchOnCopy) {
                 searchField.clear()
                 root.searchQuery = ""
+            }
+        }
+
+        Local.TemplateFieldsDialog {
+            id: templateDialog
+            parent: popupContent
+            anchors.centerIn: parent
+            width: Math.min(parent.width, Kirigami.Units.gridUnit * 28)
+            height: Math.min(implicitHeight, parent.height)
+            processor: variableHandler
+            onCopyRequested: function(snippetId, resolvedText) {
+                popupContent.copyResolvedSnippet(snippetId, resolvedText)
             }
         }
 
@@ -200,7 +225,7 @@ PlasmoidItem {
                 }
 
                 function handleSelection() {
-                    if (plasmoid.configuration.useKbdNavigation && currentIndex >= 0 && currentIndex < count)
+                    if (!templateDialog.visible && plasmoid.configuration.useKbdNavigation && currentIndex >= 0 && currentIndex < count)
                         popupContent.copySnippet(filteredModel[currentIndex])
                 }
 
@@ -301,7 +326,11 @@ PlasmoidItem {
                 if (root.expanded) {
                     snippetList.resetSelection()
                     Qt.callLater(popupContent.focusOnOpen)
-                } else if (!plasmoid.configuration.isPinned) {
+                } else {
+                    if (root.isPanel && templateDialog.visible)
+                        templateDialog.reject()
+                    if (plasmoid.configuration.isPinned)
+                        return
                     snippetList.currentIndex = -1
                     snippetList.positionViewAtBeginning()
                     if (plasmoid.configuration.clearSearchOnCopy) {
