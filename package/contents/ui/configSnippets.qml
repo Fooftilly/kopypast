@@ -294,6 +294,10 @@ SimpleKCM {
     SnippetDialog {
         id: snippetDialog
         parent: snippetsPage
+        store: snippetModel
+        maximumSnippets: plasmoid.configuration.maxSnippets
+        defaultTemplate: plasmoid.configuration.defaultTemplate
+        processVariables: plasmoid.configuration.handleVariables
         width: Math.min(snippetsPage.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
         height: Math.min(snippetsPage.height - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
     }

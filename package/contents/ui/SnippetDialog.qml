@@ -10,17 +10,22 @@ import org.kde.kirigami as Kirigami
 
 Dialog {
     id: dialog
-    parent: snippetsPage
+    required property var store
+    required property int maximumSnippets
+    property string defaultTemplate: ""
+    property bool processVariables: true
+    property string editId: ""
+    signal saved()
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
 
-    title: editIndex === -1 ? i18n("Add Snippet") : i18n("Edit Snippet")
+    title: editId === "" ? i18n("Add Snippet") : i18n("Edit Snippet")
     modal: true
     standardButtons: Dialog.Ok | Dialog.Cancel
 
-    property bool isValid: titleField.text !== "" && textArea.text !== ""
-    property int editIndex: -1
+    property bool isValid: store.configurationValid && titleField.text !== "" && textArea.text !== ""
+        && (editId === "" ? store.count < maximumSnippets : store.indexOfId(editId) >= 0)
     property alias titleText: titleField.text
     property alias snippetText: textArea.text
     property bool previewing: false
@@ -28,7 +33,7 @@ Dialog {
 
     VariableHandler {
         id: previewHandler
-        processingEnabled: plasmoid.configuration.handleVariables
+        processingEnabled: dialog.processVariables
     }
 
     Component.onCompleted: {
@@ -50,17 +55,21 @@ Dialog {
     }
 
     function createSnippet() {
-        editIndex = -1
+        if (!store.configurationValid || store.count >= maximumSnippets)
+            return
+        editId = ""
         titleText = ""
         categoryField.text = ""
         tagsField.text = ""
-        snippetText = plasmoid.configuration.defaultTemplate || ""
+        snippetText = defaultTemplate
         open()
     }
 
     function editSnippet(index) {
-        editIndex = index
-        var item = snippetModel.get(index)
+        var item = store.get(index)
+        if (!store.configurationValid || !item)
+            return
+        editId = item.id
         titleText = item.title
         categoryField.text = item.category
         tagsField.text = item.tags.join(", ")
@@ -69,22 +78,23 @@ Dialog {
     }
 
     onAccepted: {
-        if (editIndex === -1) {
-            snippetModel.append({
-                title: titleText,
-                text: snippetText,
-                usageCount: 0,
-                category: categoryField.text,
-                tags: tagsField.text.split(",")
-            })
-        } else {
-            snippetModel.set(editIndex, {
-                title: titleText,
-                text: snippetText,
-                category: categoryField.text,
-                tags: tagsField.text.split(",")
-            })
+        if (!isValid)
+            return
+        var item = {
+            title: titleText,
+            text: snippetText,
+            category: categoryField.text,
+            tags: tagsField.text.split(",")
         }
+        if (editId === "") {
+            store.append(item)
+        } else {
+            var index = store.indexOfId(editId)
+            if (index < 0)
+                return
+            store.set(index, item)
+        }
+        saved()
     }
 
     ColumnLayout {
@@ -170,7 +180,7 @@ Dialog {
         }
 
         Button {
-            visible: plasmoid.configuration.handleVariables || dialog.previewing
+            visible: dialog.processVariables || dialog.previewing
             enabled: dialog.previewing || textArea.text.length > 0
             text: dialog.previewing ? i18n("Back to editing") : i18n("Preview resolved text")
             icon.name: dialog.previewing ? "document-edit" : "document-preview"
@@ -192,7 +202,7 @@ Dialog {
             flat: true
             hoverEnabled: false
             Layout.leftMargin: -Kirigami.Units.smallSpacing
-            visible: plasmoid.configuration.handleVariables
+            visible: dialog.processVariables
 
             MouseArea {
                 anchors.fill: parent
