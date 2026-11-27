@@ -13,6 +13,10 @@ Item {
     property int count: snippets.length
     property bool configurationValid: true
 
+    // Optional synchronous storage gate. Reject a mutation before publishing it.
+    // Local configuration keeps the existing behavior when no gate is supplied.
+    property var beforeCommit: null
+
     // A prepared internal write is valid only for its exact serialized value.
     // External configuration changes must always pass normal validation.
     property var preparedWrite: null
@@ -101,7 +105,7 @@ Item {
     }
 
     function resetInvalidConfiguration() {
-        if (configurationValid)
+        if (configurationValid || beforeCommit !== null)
             return false
         configValue = "[]"
         return true
@@ -164,26 +168,28 @@ Item {
             category: item.category,
             tags: item.tags
         })
-        updateModel(snippetsArray)
+        return updateModel(snippetsArray)
     }
 
     function set(index, item) {
         var snippetsArray = snippets.slice()
         if (!snippetsArray[index])
-            return
+            return false
         var changes = { title: item.title, text: item.text }
         if (item.category !== undefined)
             changes.category = item.category
         if (item.tags !== undefined)
             changes.tags = item.tags
         snippetsArray[index] = Object.assign({}, snippetsArray[index], changes)
-        updateModel(snippetsArray)
+        return updateModel(snippetsArray)
     }
 
     function remove(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= snippets.length)
+            return false
         var snippetsArray = snippets.slice()
         snippetsArray.splice(index, 1)
-        updateModel(snippetsArray)
+        return updateModel(snippetsArray)
     }
 
     function removeForUndo(index) {
@@ -196,8 +202,7 @@ Item {
             nextId: index + 1 < snippets.length ? snippets[index + 1].id : null,
             undone: false
         }
-        remove(index)
-        return deletion
+        return remove(index) ? deletion : null
     }
 
     function undoRemoval(deletion) {
@@ -221,46 +226,50 @@ Item {
                 : Math.min(deletion.index, snippets.length)
         var updated = snippets.slice()
         updated.splice(index, 0, item)
-        updateModel(updated)
+        if (!updateModel(updated))
+            return false
         deletion.undone = true
         return true
     }
 
     function move(from, to) {
-        if (from === to) return
+        if (!Number.isInteger(from) || !Number.isInteger(to)
+                || from < 0 || to < 0 || from >= snippets.length || to >= snippets.length)
+            return false
+        if (from === to)
+            return true
         var snippetsArray = snippets.slice()
         snippetsArray.splice(to, 0, snippetsArray.splice(from, 1)[0])
-        updateModel(snippetsArray)
+        return updateModel(snippetsArray)
     }
 
     function incrementUsage(index) {
         if (!configurationValid || !snippets[index])
-            return
+            return false
         var snippetsArray = snippets.slice()
         var now = Date.now()
         // Preserve the validation invariant even if the system clock is invalid.
         if (!validTimestamp(now))
-            return
+            return false
         snippetsArray[index] = Object.assign({}, snippetsArray[index], {
             usageCount: Math.min(Number.MAX_SAFE_INTEGER, snippetsArray[index].usageCount + 1),
             isNew: false,
             lastUsedAt: now
         })
-        commitNormalized(snippetsArray)
+        return commitNormalized(snippetsArray)
     }
 
     function recordUse(id) {
         var index = indexOfId(id)
-        if (index >= 0)
-            incrementUsage(index)
+        return index >= 0 && incrementUsage(index)
     }
 
     function markAsUsed(index) {
         if (!configurationValid || !snippets[index] || !snippets[index].isNew)
-            return
+            return false
         var snippetsArray = snippets.slice()
         snippetsArray[index] = Object.assign({}, snippetsArray[index], { isNew: false })
-        commitNormalized(snippetsArray)
+        return commitNormalized(snippetsArray)
     }
 
     function setFavorite(id, favorite) {
@@ -481,7 +490,8 @@ Item {
             else
                 reserved.add(restoredEntry.id)
         }
-        updateModel(snippets.concat(restored))
+        if (!updateModel(snippets.concat(restored)))
+            return { status: "write-failed" }
         return {
             status: restored.length < accepted.length ? "partial" : "restored",
             count: restored.length,
@@ -507,6 +517,9 @@ Item {
         var serialized = JSON.stringify(records)
         if (serialized === configValue)
             return true
+
+        if (beforeCommit !== null && !beforeCommit(records))
+            return false
 
         preparedWrite = { config: serialized, records: records }
         try {

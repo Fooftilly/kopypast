@@ -40,3 +40,6 @@ jobs:
           export QML_IMPORT_PATH="$RUNNER_TEMP/kopypast/lib/qt6/qml"
           /usr/lib/qt6/bin/qmltestrunner -input native/integration/tst_backupfiledialog.qml
           rm -f native-test-backup-*.json
+          export XDG_DATA_HOME="$(mktemp -d)"
+          trap 'rm -rf "$XDG_DATA_HOME"' EXIT
+          /usr/lib/qt6/bin/qmltestrunner -input native/integration/tst_sharedlibrarysession.qml
