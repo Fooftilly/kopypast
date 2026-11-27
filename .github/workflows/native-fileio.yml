@@ -43,3 +43,10 @@ jobs:
           export XDG_DATA_HOME="$(mktemp -d)"
           trap 'rm -rf "$XDG_DATA_HOME"' EXIT
           /usr/lib/qt6/bin/qmltestrunner -input native/integration/tst_sharedlibrarysession.qml
+
+      - name: Verify native clipboard across processes on X11 and Wayland
+        shell: bash
+        run: |
+          pacman -S --noconfirm --needed qt6-wayland weston xorg-server-xvfb xorg-xauth xdotool dbus
+          QT_QPA_PLATFORM=xcb xvfb-run -a dbus-run-session -- bash native/clipboard-peer.sh build/native/clipboard_peer
+          QT_QPA_PLATFORM=wayland xvfb-run -a dbus-run-session -- bash native/clipboard-peer.sh build/native/clipboard_peer
