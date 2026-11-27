@@ -21,7 +21,11 @@ Item {
         : localStore.configurationValid
     readonly property string status: session.status
     readonly property string recoveryText: session.recoveryText
-    property bool watching: false
+    // A backend holds one watch. Give each router its own backend; if another
+    // owner replaces the watch, this router reports watching=false instead
+    // of claiming synchronization it no longer receives.
+    readonly property bool watching: watchState.owned && shared && backend !== null
+        && backend.watchedLibrary === selectedLibrary
 
     Connections {
         target: router.backend
@@ -33,16 +37,22 @@ Item {
         }
     }
 
+    QtObject {
+        id: watchState
+        property bool owned: false
+    }
+
     function startWatching() {
-        watching = shared && backend !== null
+        watchState.owned = shared && backend !== null
             && typeof backend.watchLibrary === "function"
             && backend.watchLibrary(selectedLibrary)
     }
 
     function stopWatching() {
-        watching = false
-        if (backend && typeof backend.stopWatching === "function")
+        // Leave a watch that another owner has since replaced untouched.
+        if (watching && typeof backend.stopWatching === "function")
             backend.stopWatching()
+        watchState.owned = false
     }
 
     QtObject {
@@ -116,10 +126,12 @@ Item {
     }
 
     function refresh() {
-        if (!shared || !session.refresh())
+        if (!shared)
             return false
-        // Reattach if the directory was removed or the watch failed.
+        const refreshed = session.refresh()
+        // Reattach even after a failed read, so a removed directory reports
+        // watching=false and a restored file is noticed again.
         startWatching()
-        return true
+        return refreshed
     }
 }

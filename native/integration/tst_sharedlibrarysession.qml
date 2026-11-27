@@ -27,6 +27,38 @@ TestCase {
     Local.LibraryStorageRouter { id: routerA; backend: backendA }
     Local.LibraryStorageRouter { id: routerB; backend: backendB }
     Local.LibraryStorageRouter { id: unavailableRouter }
+    SharedLibrary { id: sharedBackend }
+    Local.LibraryStorageRouter { id: routerC; backend: sharedBackend }
+    Local.LibraryStorageRouter { id: routerD; backend: sharedBackend }
+
+    function test_replacedWatchIsReported() {
+        // One backend holds one watch. A router whose watch is replaced must
+        // stop claiming synchronization, and must not stop the new owner.
+        const first = test.libraryId + "-watch-c"
+        const second = test.libraryId + "-watch-d"
+        routerC.localConfig = '[{"id":"c","title":"C","text":"body"}]'
+        routerD.localConfig = '[{"id":"d","title":"D","text":"body"}]'
+        verify(routerC.createLibrary(first))
+        verify(routerC.watching)
+        verify(routerD.createLibrary(second))
+        verify(routerD.watching)
+        verify(!routerC.watching)
+        routerC.leaveLibrary()
+        compare(sharedBackend.watchedLibrary, second)
+        verify(routerD.watching)
+        verify(routerC.joinLibrary(first))
+        verify(routerC.watching)
+        verify(!routerD.watching)
+        routerD.leaveLibrary()
+        compare(sharedBackend.watchedLibrary, first)
+        verify(routerD.joinLibrary(second))
+        verify(!routerC.watching)
+        verify(routerC.refresh())
+        verify(routerC.watching)
+        routerC.leaveLibrary()
+        routerD.leaveLibrary()
+        compare(sharedBackend.watchedLibrary, "")
+    }
 
     function test_autoRefreshAndLeave() {
         // Dedicated backends avoid replacing another router's watch.

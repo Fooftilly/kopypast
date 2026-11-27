@@ -125,17 +125,21 @@ bool SharedLibrary::watchLibrary(const QString &name)
     }
     m_name = name;
     m_path = path;
+    emit watchedLibraryChanged();
     return true;
 }
 
 void SharedLibrary::stopWatching()
 {
     m_debounce.stop();
+    const bool changed = !m_name.isEmpty();
     m_name.clear();
     m_path.clear();
     const auto paths = m_watcher.files() + m_watcher.directories();
     if (!paths.isEmpty())
         m_watcher.removePaths(paths);
+    if (changed)
+        emit watchedLibraryChanged();
 }
 
 void SharedLibrary::notifyChange()
