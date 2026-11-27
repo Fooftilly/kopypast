@@ -305,6 +305,11 @@ SimpleKCM {
     BackupDialog {
         id: backupDialog
         parent: snippetsPage
+        store: snippetModel
+        maximumSnippets: plasmoid.configuration.maxSnippets
+        onNotificationRequested: function(message, timeout) {
+            applicationWindow().showPassiveNotification(message, timeout)
+        }
         width: Math.min(snippetsPage.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
         height: Math.min(snippetsPage.height - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
     }
