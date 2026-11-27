@@ -1,0 +1,56 @@
+name: Settings and persistence benchmark
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'performance/**'
+      - 'package/contents/ui/configSnippets.qml'
+      - '.github/workflows/settings-benchmark.yml'
+permissions:
+  contents: read
+jobs:
+  settings-benchmark:
+    name: Settings and KConfig benchmark
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed git base-devel cmake ninja qt6-declarative kconfig kcmutils kirigami plasma-desktop mesa ttf-dejavu
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record environment
+        run: pacman -Q qt6-base qt6-declarative kconfig kcmutils kirigami
+      - name: Measure actual settings list and KConfig sync
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S performance -B build/performance -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/performance
+          build/performance/persistence | tee persistence.log
+          /usr/lib/qt6/bin/qmltestrunner -input performance/tst_settingslist.qml 2>&1 | tee settings.log
+          grep '^KOPYPAST_KCONFIG_BENCHMARK {' persistence.log | sed 's/^.*KOPYPAST_KCONFIG_BENCHMARK //' > persistence.jsonl
+          grep 'KOPYPAST_SETTINGS_BENCHMARK {' settings.log | sed 's/^.*KOPYPAST_SETTINGS_BENCHMARK //' > settings.jsonl
+          test "$(wc -l < persistence.jsonl)" -eq 3
+          test "$(wc -l < settings.jsonl)" -eq 3
+          {
+            echo '### Settings list and KConfig measurements'
+            echo 'Offscreen software rendering and isolated KConfig writes; not full Plasma session latency.'
+            echo '~~~json'
+            cat settings.jsonl persistence.jsonl
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: settings-persistence-benchmark
+          path: |
+            settings.jsonl
+            persistence.jsonl
+            settings.log
+            persistence.log
+          if-no-files-found: error
+          retention-days: 7
