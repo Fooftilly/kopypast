@@ -326,13 +326,19 @@ Item {
     }
 
     function getSortedSnippets(sortMode) {
+        return sortRecords(snippets, sortMode)
+    }
+
+    function sortRecords(records, sortMode) {
         // 0 manual, 1 usage, 2 recent use, 3 recently created, 4 alphabetical.
         // Favorites remain first in every mode. Unknown dates sort last.
         var mode = Number(sortMode)
         var favorites = []
         var others = []
-        for (var i = 0; i < snippets.length; i++) {
-            var record = { item: snippets[i], index: i }
+        for (var i = 0; i < records.length; i++) {
+            var record = { item: records[i], index: i }
+            if (mode === 4)
+                record.titleKey = record.item.title.normalize("NFC").toLocaleLowerCase()
             if (record.item.favorite)
                 favorites.push(record)
             else
@@ -362,8 +368,7 @@ Item {
                 result = compareDates(a.item.createdAt, b.item.createdAt)
                 break
             case 4:
-                result = a.item.title.normalize("NFC").toLocaleLowerCase().localeCompare(
-                    b.item.title.normalize("NFC").toLocaleLowerCase())
+                result = a.titleKey.localeCompare(b.titleKey)
                 break
             }
             return result || a.index - b.index
@@ -377,15 +382,14 @@ Item {
     }
 
     function getFilteredSnippets(sortMode, query) {
-        var sorted = getSortedSnippets(sortMode)
         var search = query.trim().normalize("NFC").toLowerCase()
         if (!search)
-            return sorted
+            return getSortedSnippets(sortMode)
 
         // All words must match, in any order, across title, body and metadata.
         // Normalize equivalent Unicode spellings without stripping accents.
         var words = search.split(/\s+/)
-        return sorted.filter(function(snippet) {
+        var matching = snippets.filter(function(snippet) {
             var title = snippet.title.normalize("NFC").toLowerCase()
             var body = snippet.text.normalize("NFC").toLowerCase()
             var category = snippet.category.toLowerCase()
@@ -395,6 +399,9 @@ Item {
                     || tags.some(function(tag) { return tag.includes(word) })
             })
         })
+        // Filtering preserves manual order, which is the tie-breaker in
+        // every sort mode. Sort only records that can actually be shown.
+        return sortRecords(matching, sortMode)
     }
 
     function restoreBackup(content, maxSnippets, preserveIdentity = false) {

@@ -62,6 +62,16 @@ TestCase {
             if (found.length !== expectedMatches)
                 throw new Error("Unexpected search result")
         }, 15)
+        result.selective_alphabetical_search = measure(function() {
+            const found = store.getFilteredSnippets(4, "12 snippet")
+            if (found.length !== expectedMatches)
+                throw new Error("Unexpected alphabetical search result")
+        }, 15)
+        result.alphabetical_sort = measure(function() {
+            const sorted = store.getSortedSnippets(4)
+            if (sorted.length !== data.size || !sorted[0].favorite)
+                throw new Error("Invalid alphabetical sort")
+        }, 15)
         result.usage_sort = measure(function() {
             const sorted = store.getSortedSnippets(true)
             if (sorted.length !== data.size || !sorted[0].favorite)

@@ -52,6 +52,27 @@ TestCase {
         compare(ids(".*"), [])
     }
 
+    function test_selectiveSortMatchesFullSort() {
+        store.loadFromConfig(JSON.stringify([
+            {id:"a", title:"Zulu", text:"match", usageCount:5, createdAt:100, lastUsedAt:200},
+            {id:"b", title:"Alpha", text:"excluded", favorite:true},
+            {id:"c", title:"Beta", text:"match", usageCount:5, favorite:true, createdAt:100},
+            {id:"d", title:"alpha", text:"match", createdAt:200, lastUsedAt:100},
+            {id:"e", title:"ALPHA", text:"match", lastUsedAt:100},
+            {id:"f", title:"Beta", text:"excluded"},
+            {id:"g", title:"Gamma", text:"match", favorite:true}
+        ]))
+        for (var mode = 0; mode <= 4; mode++) {
+            const full = store.getSortedSnippets(mode)
+            const expected = full.filter(function(record) { return record.text === "match" })
+                .map(function(record) { return record.id })
+            compare(ids("match", mode), expected)
+            compare(ids("absent", mode), [])
+            compare(ids("", mode), full.map(function(record) { return record.id }))
+        }
+        compare(store.snippets.map(function(record) { return record.id }), ["a","b","c","d","e","f","g"])
+    }
+
     function test_noMutation() {
         const before = store.configValue
         ids("merge", true)
