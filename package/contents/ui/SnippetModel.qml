@@ -40,6 +40,7 @@ Item {
                     || (entry.usageCount !== undefined
                         && (!Number.isSafeInteger(entry.usageCount) || entry.usageCount < 0))
                     || (entry.isNew !== undefined && typeof entry.isNew !== "boolean")
+                    || (entry.favorite !== undefined && typeof entry.favorite !== "boolean")
                     || (entry.id !== undefined && (typeof entry.id !== "string" || entry.id.length === 0)))
                 return null
             records.push({
@@ -47,7 +48,8 @@ Item {
                 title: entry.title,
                 text: entry.text,
                 usageCount: entry.usageCount === undefined ? 0 : entry.usageCount,
-                isNew: entry.isNew === undefined ? false : entry.isNew
+                isNew: entry.isNew === undefined ? false : entry.isNew,
+                favorite: entry.favorite === true
             })
         }
         return records
@@ -110,7 +112,8 @@ Item {
             title: item.title,
             text: item.text,
             usageCount: 0,
-            isNew: true
+            isNew: true,
+            favorite: false
         })
         updateModel(snippetsArray)
     }
@@ -204,23 +207,39 @@ Item {
         }
     }
 
+    function setFavorite(id, favorite) {
+        if (!configurationValid || typeof favorite !== "boolean")
+            return false
+        var index = indexOfId(id)
+        if (index < 0)
+            return false
+        if (snippets[index].favorite === favorite)
+            return true
+        var updated = snippets.slice()
+        updated[index] = Object.assign({}, updated[index], { favorite: favorite })
+        return updateModel(updated)
+    }
+
     function getSortedSnippets(sortByUsage) {
-        if (!sortByUsage) {
-            return snippets
+        // Partition by favorite without changing persisted manual order.
+        var favorites = []
+        var others = []
+        for (var i = 0; i < snippets.length; i++) {
+            var record = { item: snippets[i], index: i }
+            if (record.item.favorite)
+                favorites.push(record)
+            else
+                others.push(record)
         }
 
-        var sortedSnippets = snippets.slice()
-        sortedSnippets.sort(function(a, b) {
-            var usageA = a.usageCount || 0
-            var usageB = b.usageCount || 0
-            if (usageA !== usageB) {
-                return usageB - usageA
+        if (sortByUsage) {
+            function compareUsage(a, b) {
+                return b.item.usageCount - a.item.usageCount || a.index - b.index
             }
-            var indexA = snippets.indexOf(a)
-            var indexB = snippets.indexOf(b)
-            return indexA - indexB
-        })
-        return sortedSnippets
+            favorites.sort(compareUsage)
+            others.sort(compareUsage)
+        }
+        return favorites.concat(others).map(function(record) { return record.item })
     }
 
     function getFilteredSnippets(sortByUsage, query) {
