@@ -23,6 +23,13 @@ Dialog {
     property int editIndex: -1
     property alias titleText: titleField.text
     property alias snippetText: textArea.text
+    property bool previewing: false
+    property string resolvedPreview: ""
+
+    VariableHandler {
+        id: previewHandler
+        processingEnabled: plasmoid.configuration.handleVariables
+    }
 
     Component.onCompleted: {
         standardButton(Dialog.Ok).enabled = isValid
@@ -32,7 +39,15 @@ Dialog {
         standardButton(Dialog.Ok).enabled = isValid
     }
 
-    onOpened: titleField.forceActiveFocus()
+    onOpened: {
+        previewing = false
+        resolvedPreview = ""
+        titleField.forceActiveFocus()
+    }
+    onClosed: {
+        previewing = false
+        resolvedPreview = ""
+    }
 
     function createSnippet() {
         editIndex = -1
@@ -72,10 +87,14 @@ Dialog {
             id: titleField
             Layout.fillWidth: true
             placeholderText: i18n("Snippet Title")
-            onAccepted: textArea.forceActiveFocus()
+            onAccepted: {
+                if (!previewing)
+                    textArea.forceActiveFocus()
+            }
         }
 
         ScrollView {
+            visible: !dialog.previewing
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.topMargin: Kirigami.Units.largeSpacing
@@ -107,6 +126,40 @@ Dialog {
 
                 onClicked: {
                     textArea.paste()
+                }
+            }
+        }
+
+        ScrollView {
+            visible: dialog.previewing
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.smallSpacing
+
+            TextArea {
+                width: parent.width
+                readOnly: true
+                selectByMouse: true
+                textFormat: TextEdit.PlainText
+                wrapMode: TextEdit.Wrap
+                text: dialog.resolvedPreview
+            }
+        }
+
+        Button {
+            visible: plasmoid.configuration.handleVariables || dialog.previewing
+            enabled: dialog.previewing || textArea.text.length > 0
+            text: dialog.previewing ? i18n("Back to editing") : i18n("Preview resolved text")
+            icon.name: dialog.previewing ? "document-edit" : "document-preview"
+            onClicked: {
+                if (dialog.previewing) {
+                    dialog.previewing = false
+                    dialog.resolvedPreview = ""
+                    textArea.forceActiveFocus()
+                } else {
+                    dialog.resolvedPreview = previewHandler.processVariables(textArea.text)
+                    dialog.previewing = true
                 }
             }
         }

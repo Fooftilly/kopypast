@@ -30,6 +30,7 @@ PlasmoidItem {
 
     Local.VariableHandler {
         id: variableHandler
+        processingEnabled: plasmoid.configuration.handleVariables
     }
 
     Connections {
