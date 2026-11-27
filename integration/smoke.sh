@@ -109,3 +109,6 @@ wait "$viewer" || true
 viewer=""
 
 /usr/lib/qt6/bin/qmltestrunner -input integration
+
+# Exercise a real selection transfer to a second Qt process.
+bash integration/clipboard-peer.sh
