@@ -33,9 +33,10 @@ test "$(jq -er '.KPlugin.Id' "$installed/metadata.json")" = "$namespace"
 # is not reliable evidence of successful component creation.
 main="$installed/contents/ui/main.qml"
 sed -i '/^    id: root$/a\    Component.onCompleted: console.warn("KOPYPAST_SMOKE_ROOT_READY")' "$main"
-sed -i '/^    fullRepresentation: ColumnLayout {$/a\        Component.onCompleted: console.warn("KOPYPAST_SMOKE_CONTENT_READY")' "$main"
+# Preserve the popup's existing completion handler while adding the probe.
+sed -i 's/^        Component\.onCompleted: Qt\.callLater(focusOnOpen)$/        Component.onCompleted: { Qt.callLater(focusOnOpen); console.warn("KOPYPAST_SMOKE_CONTENT_READY") }/' "$main"
 grep -Fq 'Component.onCompleted: console.warn("KOPYPAST_SMOKE_ROOT_READY")' "$main"
-grep -Fq 'Component.onCompleted: console.warn("KOPYPAST_SMOKE_CONTENT_READY")' "$main"
+grep -Fq 'console.warn("KOPYPAST_SMOKE_CONTENT_READY")' "$main"
 
 # Qt built with journald support may send logs to a journal that is absent
 # in the container. Force all diagnostics into the captured stderr stream.
