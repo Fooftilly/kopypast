@@ -106,6 +106,8 @@ PlasmoidItem {
     fullRepresentation: ColumnLayout {
         id: popupContent
 
+        property var lastDeletion: null
+        readonly property bool managing: editor.visible || deleteDialog.visible || actionsMenu.visible
         property string categoryKey: ""
         readonly property var categoryOptions: categoryFilter.options(snippetModel.snippets, i18n("All categories"), i18n("Uncategorized"))
 
@@ -135,7 +137,7 @@ PlasmoidItem {
         }
 
         function copySnippet(snippet) {
-            if (!snippet || templateDialog.visible)
+            if (!snippet || templateDialog.visible || managing)
                 return
 
             var names = variableHandler.placeholderNames(snippet.text)
@@ -165,6 +167,75 @@ PlasmoidItem {
             } else if (plasmoid.configuration.clearSearchOnCopy) {
                 searchField.clear()
                 root.searchQuery = ""
+            }
+        }
+
+        function showEditor(id) {
+            closeController.cancelPending()
+            if (id === "")
+                editor.createSnippet()
+            else
+                editor.editSnippet(snippetModel.indexOfId(id))
+        }
+
+        Local.SnippetDialog {
+            id: editor
+            parent: popupContent
+            width: Math.min(parent.width, Kirigami.Units.gridUnit * 28)
+            height: Math.min(parent.height, Kirigami.Units.gridUnit * 30)
+            store: snippetModel
+            maximumSnippets: plasmoid.configuration.maxSnippets
+            defaultTemplate: plasmoid.configuration.defaultTemplate
+            processVariables: plasmoid.configuration.handleVariables
+        }
+
+        Menu {
+            id: actionsMenu
+            property string snippetId: ""
+            readonly property int snippetIndex: snippetModel.indexOfId(snippetId)
+            MenuItem {
+                text: i18n("Edit")
+                enabled: actionsMenu.snippetIndex >= 0
+                onTriggered: popupContent.showEditor(actionsMenu.snippetId)
+            }
+            MenuItem {
+                text: i18n("Duplicate")
+                enabled: actionsMenu.snippetIndex >= 0 && snippetModel.configurationValid
+                    && snippetModel.count < plasmoid.configuration.maxSnippets
+                onTriggered: {
+                    var item = snippetModel.get(actionsMenu.snippetIndex)
+                    if (item && snippetModel.count < plasmoid.configuration.maxSnippets)
+                        snippetModel.append({title: item.title + " " + i18n("(copy)"),
+                            text: item.text, category: item.category, tags: item.tags})
+                }
+            }
+            MenuItem {
+                text: i18n("Delete")
+                enabled: actionsMenu.snippetIndex >= 0
+                onTriggered: {
+                    deleteDialog.snippetId = actionsMenu.snippetId
+                    deleteDialog.open()
+                }
+            }
+        }
+
+        Dialog {
+            id: deleteDialog
+            parent: popupContent
+            anchors.centerIn: parent
+            width: Math.min(parent.width, Kirigami.Units.gridUnit * 22)
+            property string snippetId: ""
+            title: i18n("Delete snippet?")
+            modal: true
+            standardButtons: Dialog.Ok | Dialog.Cancel
+            contentItem: Label {
+                text: i18n("Delete the selected snippet? You can undo the deletion from the toolbar.")
+                wrapMode: Text.Wrap
+            }
+            onAccepted: {
+                var index = snippetModel.indexOfId(snippetId)
+                if (index >= 0)
+                    popupContent.lastDeletion = snippetModel.removeForUndo(index)
             }
         }
 
@@ -266,7 +337,7 @@ PlasmoidItem {
                 }
 
                 function handleSelection() {
-                    if (!templateDialog.visible && plasmoid.configuration.useKbdNavigation && currentIndex >= 0 && currentIndex < count)
+                    if (!templateDialog.visible && !popupContent.managing && plasmoid.configuration.useKbdNavigation && currentIndex >= 0 && currentIndex < count)
                         popupContent.copySnippet(filteredModel[currentIndex])
                 }
 
@@ -343,6 +414,20 @@ PlasmoidItem {
                             Accessible.name: i18n("Favorite")
                         }
 
+                        ToolButton {
+                            icon.name: "overflow-menu"
+                            display: ToolButton.IconOnly
+                            Accessible.name: i18n("Manage snippet")
+                            ToolTip.text: Accessible.name
+                            ToolTip.visible: hovered
+                            enabled: snippetModel.configurationValid
+                            onClicked: {
+                                closeController.cancelPending()
+                                actionsMenu.snippetId = modelData.id
+                                actionsMenu.popup()
+                            }
+                        }
+
                         Rectangle {
                             Layout.alignment: Qt.AlignVCenter
                             Layout.rightMargin: Kirigami.Units.smallSpacing
@@ -374,8 +459,16 @@ PlasmoidItem {
                     snippetList.resetSelection()
                     Qt.callLater(popupContent.focusOnOpen)
                 } else {
-                    if (root.isPanel && templateDialog.visible)
-                        templateDialog.reject()
+                    if (root.isPanel) {
+                        if (templateDialog.visible)
+                            templateDialog.reject()
+                        if (editor.visible)
+                            editor.reject()
+                        if (deleteDialog.visible)
+                            deleteDialog.reject()
+                        if (actionsMenu.visible)
+                            actionsMenu.close()
+                    }
                     if (plasmoid.configuration.isPinned)
                         return
                     snippetList.currentIndex = -1
@@ -413,6 +506,30 @@ PlasmoidItem {
 
                     Behavior on opacity {
                         NumberAnimation { duration: Kirigami.Units.shortDuration }
+                    }
+                }
+
+                ToolButton {
+                    icon.name: "list-add"
+                    display: ToolButton.IconOnly
+                    Accessible.name: i18n("Add Snippet")
+                    ToolTip.text: Accessible.name
+                    ToolTip.visible: hovered
+                    enabled: snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
+                    onClicked: popupContent.showEditor("")
+                }
+
+                ToolButton {
+                    icon.name: "edit-undo"
+                    display: ToolButton.IconOnly
+                    Accessible.name: i18n("Undo deletion")
+                    ToolTip.text: Accessible.name
+                    ToolTip.visible: hovered
+                    visible: popupContent.lastDeletion !== null
+                    enabled: visible && snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
+                    onClicked: {
+                        if (snippetModel.undoRemoval(popupContent.lastDeletion))
+                            popupContent.lastDeletion = null
                     }
                 }
 
