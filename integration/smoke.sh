@@ -37,7 +37,11 @@ sed -i '/^    fullRepresentation: ColumnLayout {$/a\        Component.onComplete
 grep -Fq 'Component.onCompleted: console.warn("KOPYPAST_SMOKE_ROOT_READY")' "$main"
 grep -Fq 'Component.onCompleted: console.warn("KOPYPAST_SMOKE_CONTENT_READY")' "$main"
 
-QT_LOGGING_RULES="qml.warning=true" plasmoidviewer -a "$namespace" -f planar -l floating >"$sandbox/viewer.log" 2>&1 &
+# Qt built with journald support may send logs to a journal that is absent
+# in the container. Force all diagnostics into the captured stderr stream.
+export QT_FORCE_STDERR_LOGGING=1
+export QT_LOGGING_RULES="*.warning=true;*.critical=true;qml.debug=true"
+plasmoidviewer -a "$namespace" -f planar -l floating >"$sandbox/viewer.log" 2>&1 &
 viewer=$!
 timeout 30 xdotool search --sync --onlyvisible --pid "$viewer" >/dev/null
 
@@ -52,7 +56,7 @@ for attempt in {1..30}; do
 done
 if ! grep -Fq 'KOPYPAST_SMOKE_ROOT_READY' "$sandbox/viewer.log" ||
    ! grep -Fq 'KOPYPAST_SMOKE_CONTENT_READY' "$sandbox/viewer.log"; then
-    echo "Plasma applet did not complete component creation"
+    echo "Plasma applet did not complete component creation (see viewer diagnostics below)"
     exit 1
 fi
 if grep -E 'QQmlComponent: Component is not ready|Error loading QML|Failed to load applet|Type .* unavailable|module ".*" is not installed|io\.github\.fooftilly\.kopypast/.*(ReferenceError|TypeError|SyntaxError|Cannot assign|Unable to assign)' "$sandbox/viewer.log"; then
