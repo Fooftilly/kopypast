@@ -101,6 +101,38 @@ private slots:
                  QStringLiteral("missing"));
     }
 
+    void watchAtomicUpdates()
+    {
+        const auto name = QStringLiteral("watched");
+        auto created = first.create(name, content(QStringLiteral("Original")));
+        QCOMPARE(status(created), QStringLiteral("ok"));
+        QSignalSpy changed(&second, &SharedLibrary::snapshotChanged);
+        QVERIFY(second.watchLibrary(name));
+        for (const auto &title : {QStringLiteral("First"), QStringLiteral("Second")}) {
+            changed.clear();
+            created = first.commit(name, rev(created), content(title));
+            QCOMPARE(status(created), QStringLiteral("ok"));
+            QTRY_VERIFY(!changed.isEmpty());
+            QCOMPARE(changed.last().at(0).toString(), name);
+            QCOMPARE(text(second.readSnapshot(name)), content(title));
+        }
+        changed.clear();
+        QVERIFY(QFile::remove(path(name)));
+        QTRY_VERIFY(!changed.isEmpty());
+        QCOMPARE(status(second.readSnapshot(name)), QStringLiteral("missing"));
+        changed.clear();
+        created = first.create(name, content(QStringLiteral("Recreated")));
+        QCOMPARE(status(created), QStringLiteral("ok"));
+        QTRY_VERIFY(!changed.isEmpty());
+        QCOMPARE(text(second.readSnapshot(name)), content(QStringLiteral("Recreated")));
+        second.stopWatching();
+        changed.clear();
+        QCOMPARE(status(first.commit(name, rev(created), content(QStringLiteral("Stopped")))), QStringLiteral("ok"));
+        QTest::qWait(150);
+        QVERIFY(changed.isEmpty());
+        QVERIFY(!second.watchLibrary(QStringLiteral("../escape")));
+    }
+
     void qmlImport()
     {
         QQmlEngine engine;

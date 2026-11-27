@@ -94,6 +94,62 @@ QVariantMap lockFailure(const QLockFile &lock)
 }
 }
 
+SharedLibrary::SharedLibrary(QObject *parent) : QObject(parent)
+{
+    m_debounce.setSingleShot(true);
+    m_debounce.setInterval(50);
+    connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, [this] {
+        m_debounce.start();
+    });
+    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] {
+        // Atomic replacement drops the old inode watch. Directory events
+        // also cover deletion and recreation of the selected file.
+        m_debounce.start();
+    });
+    connect(&m_debounce, &QTimer::timeout, this, &SharedLibrary::notifyChange);
+}
+
+bool SharedLibrary::watchLibrary(const QString &name)
+{
+    stopWatching();
+    const auto path = libraryPath(name);
+    if (path.isEmpty())
+        return false;
+    const auto directory = QFileInfo(path).absolutePath();
+    if (!m_watcher.addPath(directory))
+        return false;
+    const QFileInfo info(path);
+    if (info.isSymLink() || (info.exists() && (!info.isFile() || !m_watcher.addPath(path)))) {
+        stopWatching();
+        return false;
+    }
+    m_name = name;
+    m_path = path;
+    return true;
+}
+
+void SharedLibrary::stopWatching()
+{
+    m_debounce.stop();
+    m_name.clear();
+    m_path.clear();
+    const auto paths = m_watcher.files() + m_watcher.directories();
+    if (!paths.isEmpty())
+        m_watcher.removePaths(paths);
+}
+
+void SharedLibrary::notifyChange()
+{
+    if (m_name.isEmpty())
+        return;
+    const QFileInfo info(m_path);
+    // Reattach after QSaveFile replaces the watched inode. A missing file
+    // remains covered by its directory watch.
+    if (info.isFile() && !info.isSymLink() && !m_watcher.files().contains(m_path))
+        m_watcher.addPath(m_path);
+    emit snapshotChanged(m_name);
+}
+
 QVariantMap SharedLibrary::readSnapshot(const QString &name) const
 {
     const auto path = libraryPath(name);
