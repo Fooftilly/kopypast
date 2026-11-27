@@ -64,6 +64,53 @@ Item {
             compare(store.get(1).tags, ["Git"])
         }
 
+        function test_concurrentEditIsRejected() {
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            editor.titleText = "My draft"
+            store.set(0, {title:"Other edit", text:"changed body"})
+            verify(editor.editConflict)
+            verify(!editor.standardButton(Dialog.Ok).enabled)
+            compare(editor.titleText, "My draft")
+            editor.accept()
+            tryCompare(editor, "visible", false)
+            compare(store.get(0).title, "Other edit")
+            compare(store.get(0).text, "changed body")
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            verify(!editor.editConflict)
+            compare(editor.titleText, "Other edit")
+            editor.reject()
+            tryCompare(editor, "visible", false)
+        }
+
+        function test_concurrentMetadataEditIsRejected() {
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            store.set(0, {title:"One", text:"body", category:"Other", tags:["New"]})
+            verify(editor.editConflict)
+            verify(!editor.standardButton(Dialog.Ok).enabled)
+            editor.reject()
+            tryCompare(editor, "visible", false)
+            compare(store.get(0).category, "Other")
+            compare(store.get(0).tags, ["New"])
+        }
+
+        function test_usageAndFavoriteChangesDoNotConflict() {
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            store.recordUse("a")
+            store.setFavorite("a", false)
+            verify(!editor.editConflict)
+            verify(editor.standardButton(Dialog.Ok).enabled)
+            editor.titleText = "Edited"
+            editor.accept()
+            tryCompare(editor, "visible", false)
+            compare(store.get(0).title, "Edited")
+            compare(store.get(0).usageCount, 1)
+            verify(!store.get(0).favorite)
+        }
+
         function test_deletedTarget() {
             editor.editSnippet(0)
             tryCompare(editor, "opened", true)

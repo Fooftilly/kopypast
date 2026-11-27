@@ -109,6 +109,12 @@ PlasmoidItem {
         property var lastDeletion: null
         readonly property bool managing: editor.visible || deleteDialog.visible || actionsMenu.visible
         property string categoryKey: ""
+        property string tagKey: ""
+        readonly property var tagOptions: categoryFilter.tagOptions(snippetModel.snippets, i18n("All tags"), i18n("Untagged"))
+        onTagOptionsChanged: {
+            if (!tagOptions.some(function(option) { return option.key === tagKey }))
+                tagKey = ""
+        }
         readonly property var categoryOptions: categoryFilter.options(snippetModel.snippets, i18n("All categories"), i18n("Uncategorized"))
 
         Local.CategoryFilter {
@@ -307,15 +313,33 @@ PlasmoidItem {
             }
         }
 
+        ComboBox {
+            id: tagBox
+            Layout.fillWidth: true
+            Layout.leftMargin: Kirigami.Units.smallSpacing
+            Layout.rightMargin: Kirigami.Units.smallSpacing
+            visible: popupContent.tagOptions.length > 1
+            model: popupContent.tagOptions
+            textRole: "label"
+            valueRole: "key"
+            currentIndex: Math.max(0, popupContent.tagOptions.findIndex(function(option) {
+                return option.key === popupContent.tagKey
+            }))
+            Accessible.name: i18n("Filter by tag")
+            onActivated: function(index) {
+                popupContent.tagKey = popupContent.tagOptions[index].key
+            }
+        }
+
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
             ListView {
                 id: snippetList
-                property var filteredModel: categoryFilter.apply(
-                    snippetModel.getFilteredSnippets(plasmoid.configuration.sortMode, root.searchQuery),
-                    popupContent.categoryKey)
+                property var filteredModel: categoryFilter.applyTag(
+                    categoryFilter.apply(snippetModel.getFilteredSnippets(plasmoid.configuration.sortMode, root.searchQuery),
+                        popupContent.categoryKey), popupContent.tagKey)
 
                 model: filteredModel
                 clip: true
@@ -366,7 +390,7 @@ PlasmoidItem {
                     icon.name: "search"
                     icon.color: Kirigami.Theme.textColor
                     text: i18n("No matching snippets")
-                    explanation: i18n("Try a different search term or category")
+                    explanation: i18n("Try a different search term, category or tag")
                 }
 
                 delegate: Kirigami.SwipeListItem {

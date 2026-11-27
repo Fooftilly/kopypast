@@ -40,6 +40,7 @@ jobs:
           {
             echo '### Settings list and KConfig measurements'
             echo 'Offscreen software rendering and isolated KConfig writes; not full Plasma session latency.'
+            echo 'A false round_trip_ok indicates unsupported storage at that fixture size; read_attempt is not successful read latency. Do not increase the snippet limit on that basis.'
             echo '~~~json'
             cat settings.jsonl persistence.jsonl
             echo '~~~'

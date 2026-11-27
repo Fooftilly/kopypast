@@ -24,6 +24,76 @@ TestCase {
     Local.SharedLibrarySession { id: sessionA; store: a; backend: backendA }
     Local.SharedLibrarySession { id: sessionB; store: b; backend: backendB }
     Local.BackupFormat { id: codec }
+    Local.LibraryStorageRouter { id: routerA; backend: backendA }
+    Local.LibraryStorageRouter { id: routerB; backend: backendB }
+    Local.LibraryStorageRouter { id: unavailableRouter }
+
+    function test_localSharedIsolation() {
+        const name = test.libraryId + "-router"
+        const localA = '[{"id":"local-a","title":"Local A","text":"body"}]'
+        const localB = '[{"id":"local-b","title":"Local B","text":"other"}]'
+        routerA.localConfig = localA
+        routerB.localConfig = localB
+        verify(!routerA.shared)
+        verify(routerA.createLibrary(name))
+        compare(routerA.selectedLibrary, name)
+        compare(routerA.activeStore.get(0).id, "local-a")
+        compare(routerA.localConfig, localA)
+        verify(routerB.joinLibrary(name))
+        compare(routerB.activeStore.snippets, routerA.activeStore.snippets)
+        compare(routerB.localConfig, localB)
+        verify(routerA.activeStore.set(0,{title:"Shared edit",text:"body"}))
+        verify(!routerB.activeStore.set(0,{title:"Stale",text:"body"}))
+        compare(routerB.status,"conflict")
+        verify(!routerB.writable)
+        compare(routerB.localConfig,localB)
+        verify(routerB.refresh())
+        compare(routerB.activeStore.get(0).title,"Shared edit")
+        routerB.leaveLibrary()
+        verify(!routerB.shared)
+        compare(routerB.activeStore.get(0).title,"Local B")
+        compare(routerB.localConfig,localB)
+        verify(routerB.restoreSelection(name))
+        compare(routerB.activeStore.get(0).title,"Shared edit")
+        compare(routerB.localConfig,localB)
+        routerA.leaveLibrary()
+        compare(routerA.activeStore.get(0).title,"Local A")
+        compare(routerA.localConfig,localA)
+        verify(!routerA.createLibrary(name))
+        compare(routerA.status,"exists")
+        verify(!routerA.shared)
+        compare(routerA.localConfig,localA)
+    }
+
+    function test_failedSelection() {
+        const name = test.libraryId + "-missing-router"
+        const local = '[{"id":"local","title":"Local","text":"body"}]'
+        routerA.leaveLibrary()
+        routerA.localConfig = local
+        verify(!routerA.joinLibrary(name))
+        verify(!routerA.shared)
+        compare(routerA.activeStore.get(0).title,"Local")
+        verify(!routerA.restoreSelection(name))
+        verify(routerA.shared)
+        compare(routerA.status,"missing")
+        compare(routerA.activeStore.count,0)
+        verify(!routerA.activeStore.append({title:"Do not save",text:"body"}))
+        verify(!routerA.writable)
+        compare(routerA.localConfig,local)
+        routerA.leaveLibrary()
+        compare(routerA.activeStore.get(0).title,"Local")
+
+        unavailableRouter.localConfig = local
+        verify(!unavailableRouter.joinLibrary(name))
+        verify(!unavailableRouter.shared)
+        verify(!unavailableRouter.restoreSelection(name))
+        compare(unavailableRouter.status,"unavailable")
+        verify(!unavailableRouter.writable)
+        compare(unavailableRouter.activeStore.count,0)
+        compare(unavailableRouter.localConfig,local)
+        unavailableRouter.leaveLibrary()
+        compare(unavailableRouter.activeStore.get(0).id,"local")
+    }
 
     function test_twoSessions() {
         verify(sessionA.createLibrary(test.libraryId,[{id:"a",title:"Original",text:"body"}]))
