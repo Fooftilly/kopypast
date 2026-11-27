@@ -15,6 +15,19 @@ Dialog {
     property string defaultTemplate: ""
     property bool processVariables: true
     property string editId: ""
+    property string originalEditableFields: ""
+    readonly property bool editConflict: {
+        if (editId === "")
+            return false
+        const item = store.get(store.indexOfId(editId))
+        return !item || editableFields(item) !== originalEditableFields
+    }
+
+    function editableFields(item) {
+        // Only compare fields this editor can change. Usage counters,
+        // favorites and reordering must not invalidate an otherwise safe edit.
+        return JSON.stringify([item.title, item.text, item.category, item.tags])
+    }
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
@@ -24,7 +37,7 @@ Dialog {
     standardButtons: Dialog.Ok | Dialog.Cancel
 
     property bool isValid: store.configurationValid && titleField.text !== "" && textArea.text !== ""
-        && (editId === "" ? store.count < maximumSnippets : store.indexOfId(editId) >= 0)
+        && (editId === "" ? store.count < maximumSnippets : !editConflict)
     property alias titleText: titleField.text
     property alias snippetText: textArea.text
     property bool previewing: false
@@ -59,6 +72,7 @@ Dialog {
         if (!store.configurationValid || store.count >= maximumSnippets)
             return
         editId = ""
+        originalEditableFields = ""
         titleText = ""
         categoryField.text = ""
         tagsField.text = ""
@@ -70,6 +84,7 @@ Dialog {
         var item = store.get(index)
         if (!store.configurationValid || !item)
             return
+        originalEditableFields = editableFields(item)
         editId = item.id
         titleText = item.title
         categoryField.text = item.category
@@ -100,6 +115,14 @@ Dialog {
     ColumnLayout {
         anchors.fill: parent
         spacing: Kirigami.Units.smallSpacing
+
+        Label {
+            Layout.fillWidth: true
+            visible: dialog.editConflict
+            text: i18n("This snippet changed or was removed while editing. Copy your draft if needed, then cancel and reopen the snippet.")
+            wrapMode: Text.WordWrap
+            color: Kirigami.Theme.negativeTextColor
+        }
 
         TextField {
             id: titleField
