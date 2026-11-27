@@ -26,7 +26,7 @@ QtObject {
 
         // Accept legacy array backups from this fork and the original widget.
         if (Array.isArray(data))
-            return { status: "ok", content: content }
+            return { status: "ok", content: content, preserveIdentity: false }
         if (!data || typeof data !== "object" || data.format !== format)
             return { status: "invalid-format" }
         if (!Number.isSafeInteger(data.version) || data.version < 1)
@@ -36,6 +36,6 @@ QtObject {
         if (!Array.isArray(data.snippets))
             return { status: "invalid-format" }
         // The model validates the complete record set before it mutates data.
-        return { status: "ok", content: JSON.stringify(data.snippets) }
+        return { status: "ok", content: JSON.stringify(data.snippets), preserveIdentity: true }
     }
 }

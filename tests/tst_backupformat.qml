@@ -28,8 +28,41 @@ TestCase {
         compare(envelope.version, 1)
         const decoded = codec.decode(exported)
         compare(decoded.status, "ok")
-        compare(target.restoreBackup(decoded.content, 50).status, "restored")
+        compare(target.restoreBackup(decoded.content, 50, decoded.preserveIdentity).status, "restored")
         compare(target.snippets, source.snippets)
+    }
+
+    function test_distinctIdentitiesAndRepeatRestore() {
+        source.append({title:"Same", text:"body", category:"Work"})
+        source.append({title:"Same", text:"body", category:"Personal"})
+        source.setFavorite(source.get(1).id, true)
+        const decoded = codec.decode(codec.encode(source.snippets))
+        verify(decoded.preserveIdentity)
+        compare(target.restoreBackup(decoded.content, 50, decoded.preserveIdentity).status, "restored")
+        compare(target.snippets, source.snippets)
+        target.recordUse(target.get(0).id)
+        const before = target.configValue
+        compare(target.restoreBackup(decoded.content, 50, decoded.preserveIdentity).status, "duplicates")
+        compare(target.configValue, before)
+    }
+
+    function test_identityConflictIsAtomic() {
+        target.loadFromConfig('[{"id":"a","title":"Current","text":"body"}]')
+        const before = target.configValue
+        const decoded = codec.decode(codec.encode([
+            {id:"new", title:"New", text:"new"},
+            {id:"a", title:"Old", text:"body"}
+        ]))
+        compare(target.restoreBackup(decoded.content, 50, decoded.preserveIdentity).status, "id-conflict")
+        compare(target.configValue, before)
+        const duplicate = codec.decode(codec.encode([
+            {id:"new", title:"One", text:"body"},
+            {id:"new", title:"Two", text:"body"}
+        ]))
+        compare(target.restoreBackup(duplicate.content, 50, duplicate.preserveIdentity).status, "invalid-record")
+        const missing = codec.decode(codec.encode([{title:"No ID", text:"body"}]))
+        compare(target.restoreBackup(missing.content, 50, missing.preserveIdentity).status, "invalid-record")
+        compare(target.configValue, before)
     }
 
     function test_legacy() {
@@ -37,7 +70,7 @@ TestCase {
         const result = codec.decode(raw)
         compare(result.status, "ok")
         compare(result.content, raw)
-        compare(target.restoreBackup(result.content, 50).status, "restored")
+        compare(target.restoreBackup(result.content, 50, result.preserveIdentity).status, "restored")
         compare(target.get(0).title, "Legacy")
     }
 
@@ -65,10 +98,10 @@ TestCase {
         const before = target.configValue
         const invalid = codec.decode(codec.encode([{title: "valid", text: "body"}, null]))
         compare(invalid.status, "ok")
-        compare(target.restoreBackup(invalid.content, 50).status, "invalid-record")
+        compare(target.restoreBackup(invalid.content, 50, invalid.preserveIdentity).status, "invalid-record")
         compare(target.configValue, before)
-        const decoded = codec.decode(codec.encode([{title: "Existing", text: "body"}, {title: "Second", text: "two"}, {title: "Third", text: "three"}]))
-        const result = target.restoreBackup(decoded.content, 2)
+        const decoded = codec.decode(codec.encode([target.get(0), {id:"second", title: "Second", text: "two"}, {id:"third", title: "Third", text: "three"}]))
+        const result = target.restoreBackup(decoded.content, 2, decoded.preserveIdentity)
         compare(result.status, "partial")
         compare(result.count, 1)
         compare(result.duplicates, 1)
