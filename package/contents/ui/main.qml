@@ -37,11 +37,6 @@ PlasmoidItem {
         function onSnippetsChanged() {
             snippetModel.loadFromConfig(plasmoid.configuration.snippets)
         }
-        function onSortByUsageChanged() {
-            if (!plasmoid.configuration.sortByUsage) {
-                snippetModel.resetUsageCount()
-            }
-        }
     }
 
     Timer {
@@ -174,16 +169,7 @@ PlasmoidItem {
                             root.searchQuery = ""
                         }
 
-                        var originalIndex = snippetModel.snippets.findIndex(function(s) {
-                            return s.title === snippet.title && s.text === snippet.text
-                        })
-                        if (originalIndex >= 0) {
-                            if (plasmoid.configuration.sortByUsage) {
-                                snippetModel.incrementUsage(originalIndex)
-                            } else {
-                                snippetModel.markAsUsed(originalIndex)
-                            }
-                        }
+                        snippetModel.recordUse(snippet.id)
                     }
                 }
 
@@ -282,16 +268,7 @@ PlasmoidItem {
                             root.searchQuery = ""
                         }
 
-                        var originalIndex = snippetModel.snippets.findIndex(function(s) {
-                            return s.title === snippet.title && s.text === snippet.text
-                        })
-                        if (originalIndex >= 0) {
-                            if (plasmoid.configuration.sortByUsage) {
-                                snippetModel.incrementUsage(originalIndex)
-                            } else {
-                                snippetModel.markAsUsed(originalIndex)
-                            }
-                        }
+                        snippetModel.recordUse(snippet.id)
                     }
                 }
             }
