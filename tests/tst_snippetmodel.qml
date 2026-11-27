@@ -68,7 +68,13 @@ TestCase {
         store.remove(2)
         compare(store.count, 2)
         compare(store.get(1).text, "updated")
-        compare(JSON.parse(store.configValue).length, 2)
+        const persisted = JSON.parse(store.configValue)
+        compare(persisted.length, 2)
+        compare(persisted[0].title, "C")
+        compare(persisted[0].text, "three")
+        compare(persisted[1].title, "A edited")
+        compare(persisted[1].text, "updated")
+        compare(persisted, store.snippets)
     }
 
     function test_usageSortPreservesManualOrder() {
