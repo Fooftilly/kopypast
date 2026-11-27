@@ -75,8 +75,10 @@ SimpleKCM {
                 icon.source: Kirigami.Theme.textColor.hslLightness < 0.5
                     ? Qt.resolvedUrl("../icons/io.github.fooftilly.kopypast-light.svg").toString()
                     : Qt.resolvedUrl("../icons/io.github.fooftilly.kopypast-dark.svg").toString()
-                text: i18n("No snippets added")
-                explanation: i18n("Add your first snippet using the button below")
+                text: snippetModel.configurationValid ? i18n("No snippets added") : i18n("Invalid snippet configuration")
+                explanation: snippetModel.configurationValid
+                    ? i18n("Add your first snippet using the button below")
+                    : i18n("Back up the original data before resetting the configuration.")
             }
 
             ScrollView {
@@ -163,7 +165,7 @@ SimpleKCM {
                                         icon.name: "edit-duplicate"
                                         display: ToolButton.IconOnly
                                         onClicked: duplicateSnippet(index)
-                                        enabled: snippetModel.count < plasmoid.configuration.maxSnippets
+                                        enabled: snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
                                         ToolTip.text: enabled ? i18n("Duplicate") : i18n("Maximum limit reached")
                                         ToolTip.visible: hovered
                                         ToolTip.delay: Kirigami.Units.toolTipDelay
@@ -193,10 +195,17 @@ SimpleKCM {
                 icon.name: "list-add"
                 text: i18n("Add Snippet")
                 onClicked: snippetDialog.createSnippet()
-                enabled: snippetModel.count < plasmoid.configuration.maxSnippets
+                enabled: snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
                 ToolTip.text: i18n("Maximum limit reached")
                 ToolTip.visible: !enabled && hovered
                 ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+
+            Button {
+                visible: !snippetModel.configurationValid
+                icon.name: "edit-clear"
+                text: i18n("Reset invalid data")
+                onClicked: recoveryDialog.open()
             }
 
             Item { Layout.fillWidth: true }
@@ -213,11 +222,29 @@ SimpleKCM {
             Button {
                 icon.name: "document-import"
                 text: i18n("Restore")
+                enabled: snippetModel.configurationValid
                 onClicked: {
                     backupDialog.isBackup = false
                     backupDialog.open()
                 }
             }
+        }
+    }
+
+    Dialog {
+        id: recoveryDialog
+        parent: snippetsPage
+        anchors.centerIn: parent
+        width: Math.min(snippetsPage.width, Kirigami.Units.gridUnit * 25)
+        title: i18n("Reset invalid snippet data?")
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onAccepted: snippetModel.resetInvalidConfiguration()
+
+        Label {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: i18n("This clears the stored snippet data when you apply the settings. Copy the original data using Backup before continuing.")
         }
     }
 
