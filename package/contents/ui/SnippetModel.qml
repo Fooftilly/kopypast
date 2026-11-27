@@ -244,12 +244,19 @@ Item {
 
     function getFilteredSnippets(sortByUsage, query) {
         var sorted = getSortedSnippets(sortByUsage)
-        if (!query)
+        var search = query.trim().normalize("NFC").toLowerCase()
+        if (!search)
             return sorted
-        var search = query.toLowerCase()
+
+        // All words must match, in any order, across title and body.
+        // Normalize equivalent Unicode spellings without stripping accents.
+        var words = search.split(/\s+/)
         return sorted.filter(function(snippet) {
-            return snippet.title.toLowerCase().includes(search)
-                    || snippet.text.toLowerCase().includes(search)
+            var title = snippet.title.normalize("NFC").toLowerCase()
+            var body = snippet.text.normalize("NFC").toLowerCase()
+            return words.every(function(word) {
+                return title.includes(word) || body.includes(word)
+            })
         })
     }
 
