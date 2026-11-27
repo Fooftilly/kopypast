@@ -1,0 +1,54 @@
+name: Snippet scale benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'benchmarks/**'
+      - '.github/workflows/benchmark.yml'
+      - 'package/contents/ui/SnippetModel.qml'
+
+permissions:
+  contents: read
+
+jobs:
+  model-benchmark:
+    name: Snippet model benchmark
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
+    steps:
+      - name: Install Qt
+        run: pacman -Syu --noconfirm --needed git qt6-declarative mesa ttf-dejavu
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record environment
+        run: |
+          pacman -Q qt6-base qt6-declarative
+          uname -m
+      - name: Measure real snippet model
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/lib/qt6/bin/qmltestrunner -input benchmarks 2>&1 | tee benchmark.log
+          grep 'KOPYPAST_BENCHMARK {' benchmark.log | sed 's/^.*KOPYPAST_BENCHMARK //' > benchmark.jsonl
+          test "$(wc -l < benchmark.jsonl)" -eq 3
+          {
+            echo '### Snippet model measurements'
+            echo 'Median and p95 elapsed milliseconds; shared runner, no performance pass threshold.'
+            echo '~~~json'
+            cat benchmark.jsonl
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snippet-model-benchmark
+          path: |
+            benchmark.jsonl
+            benchmark.log
+          if-no-files-found: error
+          retention-days: 7
