@@ -16,9 +16,6 @@ SimpleKCM {
     property string cfg_snippets: "[]"
     property string cfg_snippetsDefault: "[]"
 
-    property var deletedSnippet: null
-    property int deletedIndex: -1
-
     Binding {
         target: snippetModel
         property: "configValue"
@@ -49,30 +46,19 @@ SimpleKCM {
     }
 
     function deleteSnippet(index) {
-        deletedSnippet = snippetModel.get(index)
-        deletedIndex = index
-        snippetModel.remove(index)
+        var deletion = snippetModel.removeForUndo(index)
+        if (!deletion)
+            return
 
-        var title = deletedSnippet.title.length > 20
-            ? deletedSnippet.title.substring(0, 20) + "..."
-            : deletedSnippet.title
+        var title = deletion.item.title.length > 20
+            ? deletion.item.title.substring(0, 20) + "..."
+            : deletion.item.title
 
         applicationWindow().showPassiveNotification(
             i18n("Snippet \"%1\" deleted", title), 5000, i18n("Undo"), function() {
-                undoDelete()
+                snippetModel.undoRemoval(deletion)
             }
         )
-    }
-
-    function undoDelete() {
-        if (deletedSnippet && deletedIndex >= 0) {
-            var insertIndex = Math.min(deletedIndex, snippetModel.count)
-            snippetModel.snippets.splice(insertIndex, 0, deletedSnippet)
-            snippetModel.configValue = JSON.stringify(snippetModel.snippets)
-
-            deletedSnippet = null
-            deletedIndex = -1
-        }
     }
 
     ColumnLayout {
