@@ -21,6 +21,29 @@ Item {
         : localStore.configurationValid
     readonly property string status: session.status
     readonly property string recoveryText: session.recoveryText
+    property bool watching: false
+
+    Connections {
+        target: router.backend
+        ignoreUnknownSignals: true
+        function onSnapshotChanged(name) {
+            // Never auto-resolve a failed commit or corrupt snapshot.
+            if (router.shared && router.watching && name === router.selectedLibrary && session.writable)
+                session.refresh()
+        }
+    }
+
+    function startWatching() {
+        watching = shared && backend !== null
+            && typeof backend.watchLibrary === "function"
+            && backend.watchLibrary(selectedLibrary)
+    }
+
+    function stopWatching() {
+        watching = false
+        if (backend && typeof backend.stopWatching === "function")
+            backend.stopWatching()
+    }
 
     QtObject {
         id: selection
@@ -51,10 +74,14 @@ Item {
             leaveLibrary()
             return true
         }
+        stopWatching()
         if (selectedLibrary !== name)
             session.closeLibrary()
         selection.name = name
-        return session.openLibrary(name)
+        const opened = session.openLibrary(name)
+        if (opened)
+            startWatching()
+        return opened
     }
 
     // Explicitly join only from local mode. Failure preserves the active
@@ -66,6 +93,7 @@ Item {
         if (!session.openLibrary(name))
             return false
         selection.name = name
+        startWatching()
         return true
     }
 
@@ -77,15 +105,21 @@ Item {
         if (!session.createLibrary(name, localStore.snippets))
             return false
         selection.name = name
+        startWatching()
         return true
     }
 
     function leaveLibrary() {
+        stopWatching()
         selection.name = ""
         session.closeLibrary()
     }
 
     function refresh() {
-        return shared && session.refresh()
+        if (!shared || !session.refresh())
+            return false
+        // Reattach if the directory was removed or the watch failed.
+        startWatching()
+        return true
     }
 }

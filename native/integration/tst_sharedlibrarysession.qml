@@ -28,6 +28,38 @@ TestCase {
     Local.LibraryStorageRouter { id: routerB; backend: backendB }
     Local.LibraryStorageRouter { id: unavailableRouter }
 
+    function test_autoRefreshAndLeave() {
+        // Dedicated backends avoid replacing another router's watch.
+        const name = test.libraryId + "-auto"
+        routerA.leaveLibrary()
+        routerB.leaveLibrary()
+        routerA.localConfig = '[{"id":"a","title":"Original","text":"body"}]'
+        routerB.localConfig = '[{"id":"b","title":"Private","text":"body"}]'
+        verify(routerA.createLibrary(name))
+        verify(routerB.joinLibrary(name))
+        verify(routerA.watching)
+        verify(routerB.watching)
+        verify(routerA.activeStore.set(0,{title:"First update",text:"body"}))
+        tryVerify(function() { return routerB.activeStore.get(0).title === "First update" })
+        verify(routerA.activeStore.set(0,{title:"Second update",text:"body"}))
+        tryVerify(function() { return routerB.activeStore.get(0).title === "Second update" })
+        // A failed synchronous CAS stays blocked, even after notifications.
+        verify(routerA.activeStore.set(0,{title:"New revision",text:"body"}))
+        verify(!routerB.activeStore.set(0,{title:"Stale",text:"body"}))
+        compare(routerB.status,"conflict")
+        wait(200)
+        compare(routerB.status,"conflict")
+        compare(routerB.activeStore.get(0).title,"Second update")
+        verify(routerB.refresh())
+        compare(routerB.activeStore.get(0).title,"New revision")
+        routerB.leaveLibrary()
+        verify(!routerB.watching)
+        verify(routerA.activeStore.set(0,{title:"After leave",text:"body"}))
+        wait(200)
+        compare(routerB.activeStore.get(0).title,"Private")
+        routerA.leaveLibrary()
+    }
+
     function test_localSharedIsolation() {
         const name = test.libraryId + "-router"
         const localA = '[{"id":"local-a","title":"Local A","text":"body"}]'
