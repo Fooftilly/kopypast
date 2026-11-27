@@ -6,7 +6,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: kopypast\n"
-"Report-Msgid-Bugs-To: https://github.com/vmkspv/kopypast/issues\n"
+"Report-Msgid-Bugs-To: https://github.com/Fooftilly/kopypast/issues\n"
 "POT-Creation-Date: 2026-04-15 12:00+0300\n"
 "PO-Revision-Date: 2025-03-20 13:00+0100\n"
 "Last-Translator: Albano Battistella <albanobattistella@gmail.com>\n"

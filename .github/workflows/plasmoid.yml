@@ -59,6 +59,17 @@ jobs:
           python -m unittest discover -s tests -p 'test_*.py'
           python tests/check_translations.py
           bash -n translate/update-pot.sh
+          namespace=$(jq -er '.KPlugin.Id' package/metadata.json)
+          for file in translate/*.po; do
+            lang=$(basename "$file" .po)
+            catalog="package/contents/locale/$lang/LC_MESSAGES/plasma_applet_$namespace.mo"
+            test -f "$catalog"
+            msgunfmt "$catalog" >/dev/null
+          done
+          if find package/contents/locale -name '*.mo' ! -name "plasma_applet_$namespace.mo" | grep -q .; then
+            echo "Found a catalog with an incorrect translation domain"
+            exit 1
+          fi
 
       - name: Run Qt Quick regression tests
         env:
@@ -68,14 +79,16 @@ jobs:
 
       - name: Package plasmoid
         run: |
+          # Package translations compiled from the current source catalogs.
+          bash translate/update-pot.sh
           cd package
-          zip -r ../io.github.vmkspv.kopypast.plasmoid .
+          zip -r ../io.github.fooftilly.kopypast.plasmoid .
           cd ..
-          unzip -t io.github.vmkspv.kopypast.plasmoid
+          unzip -t io.github.fooftilly.kopypast.plasmoid
 
       - uses: actions/upload-artifact@v4
         with:
           name: plasma-applet-kopypast
-          path: io.github.vmkspv.kopypast.plasmoid
+          path: io.github.fooftilly.kopypast.plasmoid
           if-no-files-found: error
           retention-days: 7
