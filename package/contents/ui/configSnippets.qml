@@ -15,6 +15,7 @@ SimpleKCM {
 
     property string cfg_snippets: "[]"
     property string cfg_snippetsDefault: "[]"
+    property bool localStorageLimitReached: false
 
     Binding {
         target: snippetModel
@@ -24,7 +25,12 @@ SimpleKCM {
 
     Local.SnippetModel {
         id: snippetModel
-        onConfigValueChanged: cfg_snippets = configValue
+        enforceLocalConfigBudget: true
+        onLocalConfigBudgetRejected: snippetsPage.localStorageLimitReached = true
+        onConfigValueChanged: {
+            snippetsPage.localStorageLimitReached = false
+            cfg_snippets = configValue
+        }
     }
 
     function duplicateSnippet(index) {
@@ -36,7 +42,8 @@ SimpleKCM {
             tags: originalSnippet.tags,
             usageCount: 0
         }
-        snippetModel.append(duplicatedSnippet)
+        if (!snippetModel.append(duplicatedSnippet))
+            return
 
         var title = originalSnippet.title.length > 20
             ? originalSnippet.title.substring(0, 20) + "..."
@@ -66,6 +73,14 @@ SimpleKCM {
     ColumnLayout {
         anchors.fill: parent
 
+        Label {
+            Layout.fillWidth: true
+            visible: snippetsPage.localStorageLimitReached
+            text: i18n("Change not saved: local snippet storage is too large. Reduce the data or back up the snippets.")
+            wrapMode: Text.WordWrap
+            color: Kirigami.Theme.negativeTextColor
+        }
+
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -89,6 +104,7 @@ SimpleKCM {
 
                 ListView {
                     id: snippetList
+                    objectName: "settingsSnippetList"
                     model: snippetModel.snippets
                     clip: true
 

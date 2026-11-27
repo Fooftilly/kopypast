@@ -14,7 +14,11 @@ Item {
 
     function i18n(text) { return text }
 
-    Local.SnippetModel { id: store }
+    property bool permitWrites: true
+    Local.SnippetModel {
+        id: store
+        beforeCommit: function(records) { return fixture.permitWrites }
+    }
     Local.SnippetDialog {
         id: editor
         parent: fixture
@@ -30,17 +34,43 @@ Item {
         when: windowShown
 
         function init() {
+            fixture.permitWrites = true
             store.loadFromConfig('[{"id":"a","title":"One","text":"body","favorite":true,"category":"Work","tags":["Git"]}]')
+        }
+
+        function saveButton() {
+            const button = findChild(editor.footer, "saveSnippetButton")
+            verify(button !== null)
+            return button
+        }
+
+        function test_failedWriteKeepsDraft() {
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            editor.titleText = "Unsaved draft"
+            editor.snippetText = "draft body"
+            fixture.permitWrites = false
+            mouseClick(saveButton())
+            verify(editor.visible)
+            verify(editor.saveFailed)
+            compare(editor.titleText, "Unsaved draft")
+            compare(editor.snippetText, "draft body")
+            compare(store.get(0).title, "One")
+            fixture.permitWrites = true
+            mouseClick(saveButton())
+            tryCompare(editor, "visible", false)
+            compare(store.get(0).title, "Unsaved draft")
+            compare(store.get(0).text, "draft body")
         }
 
         function test_addAndCapacity() {
             editor.createSnippet()
             tryCompare(editor, "opened", true)
             compare(editor.snippetText, "template text")
-            verify(!editor.standardButton(Dialog.Ok).enabled)
+            verify(!saveButton().enabled)
             editor.titleText = "New"
-            verify(editor.standardButton(Dialog.Ok).enabled)
-            editor.accept()
+            verify(saveButton().enabled)
+            editor.submit()
             tryCompare(editor, "visible", false)
             compare(store.count, 2)
             compare(store.get(1).title, "New")
@@ -54,7 +84,7 @@ Item {
             tryCompare(editor, "opened", true)
             store.move(0, 1)
             editor.titleText = "Edited"
-            editor.accept()
+            editor.submit()
             tryCompare(editor, "visible", false)
             compare(store.get(0).title, "Two")
             compare(store.get(1).id, "a")
@@ -70,9 +100,11 @@ Item {
             editor.titleText = "My draft"
             store.set(0, {title:"Other edit", text:"changed body"})
             verify(editor.editConflict)
-            verify(!editor.standardButton(Dialog.Ok).enabled)
+            verify(!saveButton().enabled)
             compare(editor.titleText, "My draft")
-            editor.accept()
+            verify(!editor.submit())
+            verify(editor.visible)
+            editor.reject()
             tryCompare(editor, "visible", false)
             compare(store.get(0).title, "Other edit")
             compare(store.get(0).text, "changed body")
@@ -89,7 +121,7 @@ Item {
             tryCompare(editor, "opened", true)
             store.set(0, {title:"One", text:"body", category:"Other", tags:["New"]})
             verify(editor.editConflict)
-            verify(!editor.standardButton(Dialog.Ok).enabled)
+            verify(!saveButton().enabled)
             editor.reject()
             tryCompare(editor, "visible", false)
             compare(store.get(0).category, "Other")
@@ -102,9 +134,9 @@ Item {
             store.recordUse("a")
             store.setFavorite("a", false)
             verify(!editor.editConflict)
-            verify(editor.standardButton(Dialog.Ok).enabled)
+            verify(saveButton().enabled)
             editor.titleText = "Edited"
-            editor.accept()
+            editor.submit()
             tryCompare(editor, "visible", false)
             compare(store.get(0).title, "Edited")
             compare(store.get(0).usageCount, 1)
@@ -115,8 +147,10 @@ Item {
             editor.editSnippet(0)
             tryCompare(editor, "opened", true)
             store.remove(0)
-            verify(!editor.standardButton(Dialog.Ok).enabled)
-            editor.accept()
+            verify(!saveButton().enabled)
+            verify(!editor.submit())
+            verify(editor.visible)
+            editor.reject()
             tryCompare(editor, "visible", false)
             compare(store.count, 0)
         }
