@@ -21,6 +21,39 @@ Item {
         : localStore.configurationValid
     readonly property string status: session.status
     readonly property string recoveryText: session.recoveryText
+    // A backend holds one watch. Give each router its own backend; if another
+    // owner replaces the watch, this router reports watching=false instead
+    // of claiming synchronization it no longer receives.
+    readonly property bool watching: watchState.owned && shared && backend !== null
+        && backend.watchedLibrary === selectedLibrary
+
+    Connections {
+        target: router.backend
+        ignoreUnknownSignals: true
+        function onSnapshotChanged(name) {
+            // Never auto-resolve a failed commit or corrupt snapshot.
+            if (router.shared && router.watching && name === router.selectedLibrary && session.writable)
+                session.refresh()
+        }
+    }
+
+    QtObject {
+        id: watchState
+        property bool owned: false
+    }
+
+    function startWatching() {
+        watchState.owned = shared && backend !== null
+            && typeof backend.watchLibrary === "function"
+            && backend.watchLibrary(selectedLibrary)
+    }
+
+    function stopWatching() {
+        // Leave a watch that another owner has since replaced untouched.
+        if (watching && typeof backend.stopWatching === "function")
+            backend.stopWatching()
+        watchState.owned = false
+    }
 
     QtObject {
         id: selection
@@ -51,10 +84,14 @@ Item {
             leaveLibrary()
             return true
         }
+        stopWatching()
         if (selectedLibrary !== name)
             session.closeLibrary()
         selection.name = name
-        return session.openLibrary(name)
+        const opened = session.openLibrary(name)
+        if (opened)
+            startWatching()
+        return opened
     }
 
     // Explicitly join only from local mode. Failure preserves the active
@@ -66,6 +103,7 @@ Item {
         if (!session.openLibrary(name))
             return false
         selection.name = name
+        startWatching()
         return true
     }
 
@@ -77,15 +115,23 @@ Item {
         if (!session.createLibrary(name, localStore.snippets))
             return false
         selection.name = name
+        startWatching()
         return true
     }
 
     function leaveLibrary() {
+        stopWatching()
         selection.name = ""
         session.closeLibrary()
     }
 
     function refresh() {
-        return shared && session.refresh()
+        if (!shared)
+            return false
+        const refreshed = session.refresh()
+        // Reattach even after a failed read, so a removed directory reports
+        // watching=false and a restored file is noticed again.
+        startWatching()
+        return refreshed
     }
 }

@@ -63,12 +63,15 @@ Item {
     function refresh() {
         if (!libraryName)
             return fail({status:"invalid-name"})
-        status = "loading"
         if (!backend)
             return fail({status:"unavailable"})
         const result = backend.readSnapshot(libraryName)
         if (result.status !== "ok")
             return fail(result)
+        // Ignore directory notifications, lock-file churn and our own
+        // completed writes when the revision has not changed.
+        if (writable && result.revision === revision)
+            return true
         const records = validatedRecords(result.text)
         if (records === null)
             return fail({status:"invalid-record", text:result.text})
