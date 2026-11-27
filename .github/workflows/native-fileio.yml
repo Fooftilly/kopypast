@@ -1,0 +1,30 @@
+name: Native backup file I/O
+
+on:
+  pull_request:
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-fileio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-fileio:
+    name: Native backup file tests
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
+    steps:
+      - name: Install Qt and build tools
+        run: pacman -Syu --noconfirm --needed git base-devel cmake ninja qt6-declarative
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Configure and build
+        run: |
+          cmake -S native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build/native
+      - name: Test native file operations and QML import
+        run: ctest --test-dir build/native --output-on-failure
