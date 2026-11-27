@@ -74,6 +74,16 @@ TestCase {
         compare(store.get(2).title, "B")
     }
 
+    function test_duplicatesWithinImportOnly() {
+        store.loadFromConfig("[]")
+        const result = store.restoreBackup('[{"title":"A","text":"one"},{"title":"A","text":"one"}]', 2)
+        compare(result.status, "restored")
+        compare(result.count, 1)
+        compare(result.duplicates, 1)
+        compare(store.count, 1)
+        compare(store.get(0).title, "A")
+    }
+
     function test_partialAndFull() {
         const result = store.restoreBackup('[{"title":"A","text":"one"},{"title":"B","text":"two"}]', 2)
         compare(result.status, "partial")
