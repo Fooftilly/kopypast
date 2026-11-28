@@ -118,11 +118,12 @@ start_viewer() {
     SEED="$seed" perl -0pi -e '
         s/^    id: root\n/    id: root\n    Component.onCompleted: {\n        const seed = JSON.stringify($ENV{SEED});\n        if (typeof libraryRouter !== "undefined") libraryRouter.localConfig = seed; else snippetModel.loadFromConfig(seed);\n        clipboardWriter.load();\n        console.warn("KOPYPAST_POPUP_BACKEND " + clipboardWriter.backendName)\n    }\n/m;
         s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Connections { target: templateDialog; function onOpened() { Qt.callLater(templateDialog.accept) } }\n        Timer { running: true; repeat: true; interval: 1000; onTriggered: { const d = snippetList.itemAtIndex(0); if (d) { const g = d.mapToGlobal(d.width \/ 2, d.height \/ 2); console.warn("KOPYPAST_POPUP_TARGET " + Math.round(g.x) + " " + Math.round(g.y)) } } }\n        Timer { running: true; interval: 500; onTriggered: { popupContent.Window.window.showFullScreen(); plasmoid.configuration.useKbdNavigation = true; snippetList.currentIndex = 0; snippetList.forceActiveFocus(); console.warn("KOPYPAST_POPUP_READY") } }\n/m;
-        s/^(            snippetModel\.recordUse\(snippetId\)\n)/$1            console.warn("KOPYPAST_POPUP_COPIED")\n/m;
+        s/^(            snippetModel\.recordUse\(snippetId\)\n)/$1            console.warn("KOPYPAST_POPUP_COPIED")\n            const copiedWindow = popupContent.Window.window\n            Qt.callLater(function() { copiedWindow.hide(); console.warn("KOPYPAST_POPUP_HIDDEN") })\n/m;
     ' "$main"
     grep -Fq KOPYPAST_POPUP_BACKEND "$main"
     grep -Fq KOPYPAST_POPUP_READY "$main"
     grep -Fq KOPYPAST_POPUP_COPIED "$main"
+    grep -Fq KOPYPAST_POPUP_HIDDEN "$main"
     XDG_DATA_HOME="$home/data" XDG_CONFIG_HOME="$home/config" XDG_CACHE_HOME="$home/cache" \
         plasmoidviewer -a "$namespace" -f planar -l floating >"$sandbox/viewer-$name.log" 2>&1 &
     viewer=$!
@@ -131,6 +132,9 @@ start_viewer() {
     grep -Fq "KOPYPAST_POPUP_BACKEND native" "$sandbox/viewer-$name.log"
     sleep 2
     wait_marker "$viewer" "$sandbox/viewer-$name.log" KOPYPAST_POPUP_COPIED popup
+    # The popup surface is unmapped before another client reads, as when
+    # the popup closes after copying; the widget process keeps running.
+    wait_marker "$viewer" "$sandbox/viewer-$name.log" KOPYPAST_POPUP_HIDDEN no
 }
 
 read_clipboard() {
@@ -145,7 +149,8 @@ read_clipboard() {
     grep -Fq KOPYPAST_NATIVE_TRANSFER_OK "$sandbox/reader-$kind.log"
 }
 
-# Text copied from the popup reaches another client while the widget runs.
+# Text copied from the popup reaches another client after the popup window
+# is hidden, while the widget process runs.
 start_viewer text "$text_snippet"
 text_viewer=$viewer
 read_clipboard text
