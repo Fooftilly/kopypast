@@ -19,32 +19,63 @@ SimpleKCM {
     property string cfg_sharedLibraryDefault: ""
 
     // Optional native module; ordinary local snippets work without it.
+    // The share controls and the snippet list each get their own backend,
+    // because a backend holds a single library watch.
     property var sharedLibraryBackend: null
-    Component.onCompleted: {
+    property var listBackend: null
+    function createBackend(name) {
         try {
-            sharedLibraryBackend = Qt.createQmlObject(
+            return Qt.createQmlObject(
                 "import io.github.fooftilly.kopypast.fileio 1.0; SharedLibrary {}",
-                snippetsPage, "OptionalSharedLibrary")
+                snippetsPage, name)
         } catch (error) {
-            sharedLibraryBackend = null
+            return null
         }
     }
+    Component.onCompleted: {
+        sharedLibraryBackend = createBackend("OptionalSharedLibrary")
+        listBackend = createBackend("OptionalSharedLibraryList")
+        libraryRouter.restoreSelection(cfg_sharedLibrary)
+    }
+    onCfg_sharedLibraryChanged: libraryRouter.restoreSelection(cfg_sharedLibrary)
     property bool localStorageLimitReached: false
 
+    // Local snippets follow the page's pending configuration and are saved
+    // on Apply. While the page selects a shared library, the list shows that
+    // library and each change is written to it at once, as in the popup;
+    // the widget's own snippets stay unchanged.
     Binding {
-        target: snippetModel
-        property: "configValue"
+        target: libraryRouter
+        property: "localConfig"
         value: cfg_snippets
     }
 
-    Local.SnippetModel {
-        id: snippetModel
+    Local.LibraryStorageRouter {
+        id: libraryRouter
+        backend: snippetsPage.listBackend
         enforceLocalConfigBudget: true
         onLocalConfigBudgetRejected: snippetsPage.localStorageLimitReached = true
-        onConfigValueChanged: {
+        onLocalConfigChanged: {
             snippetsPage.localStorageLimitReached = false
-            cfg_snippets = configValue
+            cfg_snippets = localConfig
         }
+        onSelectedLibraryChanged: {
+            if (snippetDialog.visible)
+                snippetDialog.storeReplaced = true
+            if (metadataDialog.visible)
+                metadataDialog.reject()
+            if (backupDialog.visible)
+                backupDialog.reject()
+            if (recoveryDialog.visible)
+                recoveryDialog.reject()
+        }
+    }
+
+    readonly property var snippetModel: libraryRouter.activeStore
+    readonly property bool storeWritable: libraryRouter.writable
+
+    Local.LibraryStatusText {
+        id: libraryStatusText
     }
 
     function duplicateSnippet(index) {
@@ -69,7 +100,9 @@ SimpleKCM {
     }
 
     function deleteSnippet(index) {
-        var deletion = snippetModel.removeForUndo(index)
+        // Undo restores into the store the snippet was removed from.
+        var store = snippetModel
+        var deletion = store.removeForUndo(index)
         if (!deletion)
             return
 
@@ -79,7 +112,8 @@ SimpleKCM {
 
         applicationWindow().showPassiveNotification(
             i18n("Snippet \"%1\" deleted", title), 5000, i18n("Undo"), function() {
-                snippetModel.undoRemoval(deletion)
+                if (store === snippetsPage.snippetModel)
+                    store.undoRemoval(deletion)
             }
         )
     }
@@ -92,12 +126,35 @@ SimpleKCM {
             Layout.margins: Kirigami.Units.smallSpacing
             backend: snippetsPage.sharedLibraryBackend
             selectedLibrary: snippetsPage.cfg_sharedLibrary
-            localRecords: snippetModel.snippets
-            localRecordsValid: snippetModel.configurationValid
+            localRecords: libraryRouter.shared ? [] : snippetModel.snippets
+            localRecordsValid: !libraryRouter.shared && snippetModel.configurationValid
             dialogParent: snippetsPage
             onSelectionRequested: function(name) {
                 snippetsPage.cfg_sharedLibrary = name
             }
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.smallSpacing
+            objectName: "settingsLibraryStatus"
+            visible: libraryRouter.shared
+            type: libraryStatusText.message(libraryRouter.status) === ""
+                ? Kirigami.MessageType.Information
+                : libraryRouter.status === "conflict" || libraryRouter.status === "busy"
+                    ? Kirigami.MessageType.Warning : Kirigami.MessageType.Error
+            text: libraryStatusText.message(libraryRouter.status) !== ""
+                ? libraryStatusText.message(libraryRouter.status)
+                : i18n("Showing the shared library “%1”. Changes here are saved to it immediately and appear in every widget that uses it.", libraryRouter.selectedLibrary)
+            actions: [
+                Kirigami.Action {
+                    icon.name: "view-refresh"
+                    text: i18n("Refresh")
+                    visible: libraryStatusText.message(libraryRouter.status) !== ""
+                    // Refresh rereads the file; it never overwrites it.
+                    onTriggered: libraryRouter.refresh()
+                }
+            ]
         }
 
         Label {
@@ -119,8 +176,8 @@ SimpleKCM {
                 icon.source: Kirigami.Theme.textColor.hslLightness < 0.5
                     ? Qt.resolvedUrl("../icons/io.github.fooftilly.kopypast-light.svg").toString()
                     : Qt.resolvedUrl("../icons/io.github.fooftilly.kopypast-dark.svg").toString()
-                text: snippetModel.configurationValid ? i18n("No snippets added") : i18n("Invalid snippet configuration")
-                explanation: snippetModel.configurationValid
+                text: snippetModel.configurationValid || libraryRouter.shared ? i18n("No snippets added") : i18n("Invalid snippet configuration")
+                explanation: snippetModel.configurationValid || libraryRouter.shared
                     ? i18n("Add your first snippet using the button below")
                     : i18n("Back up the original data before resetting the configuration.")
             }
@@ -169,6 +226,7 @@ SimpleKCM {
                                     listItem: snippetDelegate
                                     listView: snippetList
                                     visible: snippetList.count > 1
+                                    enabled: snippetsPage.storeWritable
                                     onMoveRequested: function(oldIndex, newIndex) {
                                         snippetModel.move(oldIndex, newIndex)
                                     }
@@ -216,6 +274,7 @@ SimpleKCM {
                                         display: ToolButton.IconOnly
                                         checkable: true
                                         checked: modelData.favorite
+                                        enabled: snippetsPage.storeWritable
                                         onClicked: snippetModel.setFavorite(modelData.id, !modelData.favorite)
                                         Accessible.name: modelData.favorite ? i18n("Remove from favorites") : i18n("Add to favorites")
                                         ToolTip.text: Accessible.name
@@ -227,6 +286,7 @@ SimpleKCM {
                                         icon.name: "document-edit"
                                         display: ToolButton.IconOnly
                                         onClicked: snippetDialog.editSnippet(index)
+                                        enabled: snippetsPage.storeWritable
                                         ToolTip.text: i18n("Edit")
                                         ToolTip.visible: hovered
                                         ToolTip.delay: Kirigami.Units.toolTipDelay
@@ -236,7 +296,7 @@ SimpleKCM {
                                         icon.name: "edit-duplicate"
                                         display: ToolButton.IconOnly
                                         onClicked: duplicateSnippet(index)
-                                        enabled: snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
+                                        enabled: snippetsPage.storeWritable && snippetModel.count < plasmoid.configuration.maxSnippets
                                         ToolTip.text: enabled ? i18n("Duplicate") : i18n("Maximum limit reached")
                                         ToolTip.visible: hovered
                                         ToolTip.delay: Kirigami.Units.toolTipDelay
@@ -246,6 +306,7 @@ SimpleKCM {
                                         icon.name: "edit-delete"
                                         display: ToolButton.IconOnly
                                         onClicked: deleteSnippet(index)
+                                        enabled: snippetsPage.storeWritable
                                         ToolTip.text: i18n("Delete")
                                         ToolTip.visible: hovered
                                         ToolTip.delay: Kirigami.Units.toolTipDelay
@@ -263,17 +324,19 @@ SimpleKCM {
             Layout.margins: Kirigami.Units.smallSpacing
 
             Button {
+                objectName: "addSnippetButton"
                 icon.name: "list-add"
                 text: i18n("Add Snippet")
                 onClicked: snippetDialog.createSnippet()
-                enabled: snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
+                enabled: snippetsPage.storeWritable && snippetModel.count < plasmoid.configuration.maxSnippets
                 ToolTip.text: i18n("Maximum limit reached")
                 ToolTip.visible: !enabled && hovered
                 ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
             Button {
-                visible: !snippetModel.configurationValid
+                // A shared library is recovered with Refresh, never reset here.
+                visible: !libraryRouter.shared && !snippetModel.configurationValid
                 icon.name: "edit-clear"
                 text: i18n("Reset invalid data")
                 onClicked: recoveryDialog.open()
@@ -282,7 +345,7 @@ SimpleKCM {
             Button {
                 icon.name: "tag"
                 text: i18n("Manage groups")
-                enabled: snippetModel.configurationValid && snippetModel.count > 0
+                enabled: snippetsPage.storeWritable && snippetModel.count > 0
                 onClicked: metadataDialog.open()
             }
 
@@ -300,7 +363,7 @@ SimpleKCM {
             Button {
                 icon.name: "document-import"
                 text: i18n("Restore")
-                enabled: snippetModel.configurationValid
+                enabled: snippetsPage.storeWritable
                 onClicked: {
                     backupDialog.isBackup = false
                     backupDialog.open()
@@ -341,6 +404,8 @@ SimpleKCM {
         maximumSnippets: plasmoid.configuration.maxSnippets
         defaultTemplate: plasmoid.configuration.defaultTemplate
         processVariables: plasmoid.configuration.handleVariables
+        recoverStore: function() { return libraryRouter.refresh() }
+        recoverAvailable: libraryRouter.shared
         width: Math.min(snippetsPage.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
         height: Math.min(snippetsPage.height - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
     }

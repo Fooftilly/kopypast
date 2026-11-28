@@ -38,7 +38,7 @@ The default module destination on Arch is `/usr/lib/qt6/qml/io/github/fooftilly/
 
 With the optional native module installed (see above), several Kopypast widgets can use one snippet library, for example a panel widget on each screen. Open **Configure Kopypast → Snippets → Share…**, enter a library name (lowercase letters, digits, `-` or `_`), and either **Create from these snippets** or **Join existing**, then apply the settings. Each widget keeps its own snippets unchanged; they return when you choose **Stop sharing**.
 
-Add, edit and delete shared snippets from the popup. Changes made in one widget appear in the others automatically. If two widgets save at the same time, the later save is refused instead of overwriting the other change; use **Refresh** in the popup and try again. If the module is missing or the library file is unreadable, the popup explains the problem and blocks changes rather than saving to the widget's own snippets.
+Add, edit and delete shared snippets from the popup, or from **Configure Kopypast → Snippets**, which shows the shared library while one is selected. Changes to a shared library are saved immediately, not on Apply, and appear in the other widgets automatically. Apply only saves the choice of library. If two widgets save at the same time, the later save is refused instead of overwriting the other change; use **Refresh** in the popup and try again. If the module is missing or the library file is unreadable, the popup explains the problem and blocks changes rather than saving to the widget's own snippets.
 
 Libraries are stored as versioned backup files in `~/.local/share/io.github.fooftilly.kopypast/libraries/`. They contain plaintext; keep them private.
 
