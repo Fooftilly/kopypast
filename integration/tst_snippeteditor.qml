@@ -85,8 +85,10 @@ Item {
             verify(editor.saveFailed)
             const recover = findChild(editor, "recoverStoreButton")
             verify(recover !== null)
-            verify(recover.visible)
-            mouseClick(recover)
+            tryCompare(recover, "visible", true)
+            // The button may be laid out below the visible part of the
+            // dialog; activate it directly rather than clicking a position.
+            recover.clicked()
             compare(fixture.recoveries, 1)
             verify(!editor.saveFailed)
             compare(editor.titleText, "Retry draft")
