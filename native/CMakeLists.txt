@@ -36,6 +36,8 @@ if(BUILD_TESTING)
     add_test(NAME sharedlibrary COMMAND tst_sharedlibrary)
     set_tests_properties(sharedlibrary PROPERTIES
         ENVIRONMENT "KOPYPAST_TEST_QML_PATH=${CMAKE_BINARY_DIR}/qml")
+    qt_add_executable(clipboard_peer clipboardpeer.cpp)
+    target_link_libraries(clipboard_peer PRIVATE kopypastfileio Qt6::Gui)
     qt_add_executable(tst_clipboard tst_clipboard.cpp)
     target_link_libraries(tst_clipboard PRIVATE kopypastfileio Qt6::Gui Qt6::Test Qt6::Qml)
     add_dependencies(tst_clipboard kopypastfileioplugin)
