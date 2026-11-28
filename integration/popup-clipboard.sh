@@ -54,8 +54,11 @@ case "$QT_QPA_PLATFORM" in
     *) exit 2 ;;
 esac
 
+# A click activates the window under the pointer; Return then copies the
+# selected snippet through the popup's keyboard path. The applet does not
+# fill plasmoidviewer's window, so a click alone may miss the list.
 click() {
-    DISPLAY="$output_display" xdotool mousemove 640 400 click 1
+    DISPLAY="$output_display" xdotool mousemove 640 400 click 1 sleep 0.3 key Return
 }
 
 # Wait for a marker, sending a real click to the centre of the output each
@@ -81,8 +84,8 @@ namespace=$(jq -er '.KPlugin.Id' package/metadata.json)
 text_snippet='{"title":"Text","text":"    Kopypast native clipboard\n<b>literal</b>\tčćž 日本語 😀\n\n"}'
 empty_snippet='{"title":"Empty","text":"{{EMPTY}}"}'
 
-# Start one fullscreen viewer whose list holds 20 copies of one snippet, so
-# the click at the centre of the output lands on that snippet.
+# Start one fullscreen viewer whose list holds 20 copies of one snippet, with
+# keyboard navigation on and the first snippet selected.
 start_viewer() {
     local name=$1 snippet=$2
     local home="$sandbox/$name"
@@ -96,7 +99,7 @@ start_viewer() {
     # (the copy still follows a real click).
     SEED="$seed" perl -0pi -e '
         s/^    id: root\n/    id: root\n    Component.onCompleted: {\n        const seed = JSON.stringify($ENV{SEED});\n        if (typeof libraryRouter !== "undefined") libraryRouter.localConfig = seed; else snippetModel.loadFromConfig(seed);\n        clipboardWriter.load();\n        console.warn("KOPYPAST_POPUP_BACKEND " + clipboardWriter.backendName)\n    }\n/m;
-        s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Connections { target: templateDialog; function onOpened() { Qt.callLater(templateDialog.accept) } }\n        Timer { running: true; interval: 500; onTriggered: { popupContent.Window.window.showFullScreen(); console.warn("KOPYPAST_POPUP_READY") } }\n/m;
+        s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Connections { target: templateDialog; function onOpened() { Qt.callLater(templateDialog.accept) } }\n        Timer { running: true; interval: 500; onTriggered: { popupContent.Window.window.showFullScreen(); plasmoid.configuration.useKbdNavigation = true; snippetList.currentIndex = 0; snippetList.forceActiveFocus(); console.warn("KOPYPAST_POPUP_READY") } }\n/m;
         s/^(            snippetModel\.recordUse\(snippetId\)\n)/$1            console.warn("KOPYPAST_POPUP_COPIED")\n/m;
     ' "$main"
     grep -Fq KOPYPAST_POPUP_BACKEND "$main"
