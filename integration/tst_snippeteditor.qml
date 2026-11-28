@@ -5,6 +5,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
+import org.kde.kirigami as Kirigami
 import "../package/contents/ui" as Local
 
 Item {
@@ -75,6 +76,43 @@ Item {
             tryCompare(editor, "visible", false)
         }
 
+        // The control lies inside the dialog's visible content area.
+        function verifyReachable(item) {
+            const content = editor.contentItem
+            const p = item.mapToItem(content, 0, 0)
+            verify(item.width > 0 && item.height > 0)
+            verify(p.x >= 0 && p.y >= 0, "control starts inside the dialog")
+            verify(p.x + item.width <= content.width && p.y + item.height <= content.height,
+                   "control ends inside the dialog")
+        }
+
+        function test_recoverAtMinimumPopupSize() {
+            // The popup's minimum size is 14 x 18 grid units.
+            const width = editor.width
+            const height = editor.height
+            editor.width = Kirigami.Units.gridUnit * 14
+            editor.height = Kirigami.Units.gridUnit * 18
+            fixture.recoverAvailable = true
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            editor.titleText = "Small draft"
+            fixture.permitWrites = false
+            editor.submit()
+            verify(editor.saveFailed)
+            const recover = findChild(editor, "recoverStoreButton")
+            tryCompare(recover, "visible", true)
+            waitForItemPolished(recover.parent)
+            verifyReachable(recover)
+            mouseClick(recover)
+            compare(fixture.recoveries, 1)
+            compare(editor.titleText, "Small draft")
+            mouseClick(saveButton())
+            tryCompare(editor, "visible", false)
+            compare(store.get(0).title, "Small draft")
+            editor.width = width
+            editor.height = height
+        }
+
         function test_recoverAfterFailedSaveKeepsDraft() {
             fixture.recoverAvailable = true
             editor.editSnippet(0)
@@ -86,9 +124,11 @@ Item {
             const recover = findChild(editor, "recoverStoreButton")
             verify(recover !== null)
             tryCompare(recover, "visible", true)
-            // The button may be laid out below the visible part of the
-            // dialog; activate it directly rather than clicking a position.
-            recover.clicked()
+            // The button appears with the failure message; click only after
+            // the layout has placed it, as a user would.
+            waitForItemPolished(recover.parent)
+            verifyReachable(recover)
+            mouseClick(recover)
             compare(fixture.recoveries, 1)
             verify(!editor.saveFailed)
             compare(editor.titleText, "Retry draft")
