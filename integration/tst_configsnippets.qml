@@ -5,6 +5,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
+import "../package/contents/ui" as Local
 
 // The Snippets settings page lists the shared library it selects and writes
 // each change to that library at once, leaving the widget's own snippets
@@ -70,6 +71,8 @@ Item {
         function watchLibrary(name) { watchedLibrary = name; return true }
         function stopWatching() { watchedLibrary = "" }
     }
+
+    Local.BackupFormat { id: codec }
 
     Loader {
         id: loader
@@ -187,6 +190,33 @@ Item {
             verify(notice.text.indexOf("from the popup") < 0)
             page.cfg_sharedLibrary = ""
             verify(metadata.text.indexOf("Apply the widget settings to save") >= 0)
+        }
+
+        function test_sharedLibraryBackupRoundTrip() {
+            // Back up one shared library from the settings page and restore
+            // it into another; identities survive and nothing is local.
+            const page = loader.item
+            page.cfg_sharedLibrary = "team"
+            verify(page.snippetModel.append({title:"Second", text:"two", category:"Work", tags:["git"]}))
+            const backup = codec.encode(page.snippetModel.snippets)
+            const ids = page.snippetModel.snippets.map(function(record) { return record.id })
+
+            page.cfg_sharedLibrary = "other"
+            const decoded = codec.decode(backup)
+            compare(decoded.status, "ok")
+            const result = page.snippetModel.restoreBackup(decoded.content, 100, decoded.preserveIdentity)
+            compare(result.status, "restored")
+            compare(result.count, 2)
+            compare(sharedTitles("other"), ["Other", "Shared", "Second"])
+            const restored = JSON.parse(fake.files["other"].text).snippets
+            compare(restored.slice(1).map(function(record) { return record.id }), ids)
+            compare(restored[2].category, "Work")
+            compare(restored[2].tags, ["git"])
+
+            // Restoring the same backup again changes nothing.
+            compare(page.snippetModel.restoreBackup(decoded.content, 100, true).status, "duplicates")
+            compare(sharedTitles("other"), ["Other", "Shared", "Second"])
+            compare(page.cfg_snippets, localSnippets)
         }
 
         function test_unavailableLibraryBlocksWrites() {
