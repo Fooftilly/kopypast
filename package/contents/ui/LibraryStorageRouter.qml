@@ -60,8 +60,14 @@ Item {
         property string name: ""
     }
 
+    // The local store persists as one KConfig entry; its owner enables the
+    // line-size budget and handles the rejection.
+    property alias enforceLocalConfigBudget: localStore.enforceLocalConfigBudget
+    signal localConfigBudgetRejected()
+
     SnippetModel {
         id: localStore
+        onLocalConfigBudgetRejected: router.localConfigBudgetRejected()
     }
 
     SnippetModel {

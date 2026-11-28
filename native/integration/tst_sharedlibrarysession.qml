@@ -28,6 +28,49 @@ TestCase {
     Local.LibraryStorageRouter { id: routerB; backend: backendB }
     Local.LibraryStorageRouter { id: unavailableRouter }
     SharedLibrary { id: sharedBackend }
+    Local.LibrarySelection {
+        id: settingsSelection
+        backend: backendA
+        localRecords: [{id:"x", title:"From settings", text:"body", category:"", tags:[]}]
+    }
+    Local.LibrarySelection { id: otherSelection; backend: backendB }
+
+    function test_deleteAfterRemoteEditNeedsConfirmation() {
+        // Widget A asks to confirm a deletion; widget B edits the record and
+        // A refreshes automatically. A's deletion must not remove B's edit.
+        const name = test.libraryId + "-delete"
+        routerA.leaveLibrary()
+        routerB.leaveLibrary()
+        routerA.localConfig = '[{"id":"d","title":"Shared","text":"body"}]'
+        verify(routerA.createLibrary(name))
+        verify(routerB.joinLibrary(name))
+        const confirmed = routerA.activeStore.editableFields(routerA.activeStore.get(0))
+        verify(routerB.activeStore.set(0, {title:"Shared", text:"edited by B"}))
+        tryVerify(function() { return routerA.activeStore.get(0).text === "edited by B" })
+        compare(routerA.activeStore.removeConfirmed("d", confirmed).status, "changed")
+        verify(routerA.refresh())
+        compare(routerA.activeStore.count, 1)
+        compare(routerA.activeStore.get(0).text, "edited by B")
+        routerA.leaveLibrary()
+        routerB.leaveLibrary()
+    }
+
+    function test_settingsCreateAndJoin() {
+        // The settings page creates a library file, then another widget
+        // joins it; the widget router opens it by the saved name.
+        const name = test.libraryId + "-settings"
+        verify(settingsSelection.createLibrary(name))
+        verify(!settingsSelection.createLibrary(name))
+        compare(settingsSelection.errorStatus, "exists")
+        verify(otherSelection.joinLibrary(name))
+        verify(!otherSelection.joinLibrary(name + "-absent"))
+        compare(otherSelection.errorStatus, "missing")
+        routerB.leaveLibrary()
+        verify(routerB.restoreSelection(name))
+        compare(routerB.activeStore.get(0).title, "From settings")
+        verify(routerB.writable)
+        routerB.leaveLibrary()
+    }
     Local.LibraryStorageRouter { id: routerC; backend: sharedBackend }
     Local.LibraryStorageRouter { id: routerD; backend: sharedBackend }
 

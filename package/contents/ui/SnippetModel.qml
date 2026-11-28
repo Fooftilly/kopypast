@@ -229,6 +229,25 @@ Item {
         return remove(index) ? deletion : null
     }
 
+    // Fields a user sees when confirming an edit or deletion. Usage
+    // counters, favorites and ordering are not part of that decision.
+    function editableFields(item) {
+        return JSON.stringify([item.title, item.text, item.category, item.tags])
+    }
+
+    // Delete only the record the user confirmed. If another widget changed
+    // or removed it meanwhile, nothing is removed and a new confirmation is
+    // needed. Returns {status: "ok"|"changed"|"missing"|"failed", deletion}.
+    function removeConfirmed(id, confirmedFields) {
+        var index = indexOfId(id)
+        if (index < 0)
+            return { status: "missing", deletion: null }
+        if (editableFields(snippets[index]) !== confirmedFields)
+            return { status: "changed", deletion: null }
+        var deletion = removeForUndo(index)
+        return { status: deletion ? "ok" : "failed", deletion: deletion }
+    }
+
     function undoRemoval(deletion) {
         if (!configurationValid || !deletion || deletion.undone)
             return false

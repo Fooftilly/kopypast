@@ -25,21 +25,43 @@ PlasmoidItem {
     readonly property var closeDelayValues: [0, 700, 1000, 1500]
     hideOnWindowDeactivate: !plasmoid.configuration.isPinned
 
-    Local.SnippetModel {
-        id: snippetModel
+    // Optional native backend for an opt-in shared library. Without the
+    // module, a saved shared selection stays blocked instead of silently
+    // writing to this widget's own snippets.
+    property var sharedLibraryBackend: null
+
+    Local.LibraryStorageRouter {
+        id: libraryRouter
+        backend: root.sharedLibraryBackend
         enforceLocalConfigBudget: true
         onLocalConfigBudgetRejected: root.localStorageLimitReached = true
         Component.onCompleted: {
-            loadFromConfig(plasmoid.configuration.snippets)
+            try {
+                root.sharedLibraryBackend = Qt.createQmlObject(
+                    "import io.github.fooftilly.kopypast.fileio 1.0; SharedLibrary {}",
+                    libraryRouter, "OptionalSharedLibrary")
+            } catch (error) {
+                root.sharedLibraryBackend = null
+            }
+            localConfig = plasmoid.configuration.snippets
+            restoreSelection(plasmoid.configuration.sharedLibrary)
             if (plasmoid.configuration.sortMode === -1) {
                 plasmoid.configuration.sortMode = plasmoid.configuration.sortByUsage ? 1 : 0
                 plasmoid.configuration.sortByUsage = false
             }
         }
-        onConfigValueChanged: {
+        onLocalConfigChanged: {
             root.localStorageLimitReached = false
-            plasmoid.configuration.snippets = configValue
+            plasmoid.configuration.snippets = localConfig
         }
+    }
+
+    // The store the popup shows: local snippets, or the selected library.
+    readonly property var snippetModel: libraryRouter.activeStore
+    readonly property bool storeWritable: libraryRouter.writable
+
+    Local.LibraryStatusText {
+        id: libraryStatusText
     }
 
     Local.SearchHighlighter {
@@ -54,7 +76,10 @@ PlasmoidItem {
     Connections {
         target: plasmoid.configuration
         function onSnippetsChanged() {
-            snippetModel.loadFromConfig(plasmoid.configuration.snippets)
+            libraryRouter.localConfig = plasmoid.configuration.snippets
+        }
+        function onSharedLibraryChanged() {
+            libraryRouter.restoreSelection(plasmoid.configuration.sharedLibrary)
         }
     }
 
@@ -113,6 +138,26 @@ PlasmoidItem {
         id: popupContent
 
         property var lastDeletion: null
+        // Incremented on every library switch. A template opened for one
+        // library must not copy or record use in another.
+        property int libraryGeneration: 0
+        property int templateGeneration: -1
+        // An undo record belongs to the store it was removed from.
+        Connections {
+            target: libraryRouter
+            function onSelectedLibraryChanged() {
+                popupContent.libraryGeneration++
+                popupContent.lastDeletion = null
+                if (templateDialog.visible)
+                    templateDialog.reject()
+                if (editor.visible)
+                    editor.storeReplaced = true
+                if (deleteDialog.visible)
+                    deleteDialog.reject()
+                if (actionsMenu.visible)
+                    actionsMenu.close()
+            }
+        }
         readonly property bool managing: editor.visible || deleteDialog.visible || actionsMenu.visible
         property string categoryKey: ""
         property string tagKey: ""
@@ -155,6 +200,7 @@ PlasmoidItem {
             var names = variableHandler.placeholderNames(snippet.text)
             if (names.length > 0) {
                 closeController.cancelPending()
+                templateGeneration = libraryGeneration
                 templateDialog.openTemplate(snippet.id, snippet.text, names)
                 return
             }
@@ -199,6 +245,8 @@ PlasmoidItem {
             maximumSnippets: plasmoid.configuration.maxSnippets
             defaultTemplate: plasmoid.configuration.defaultTemplate
             processVariables: plasmoid.configuration.handleVariables
+            recoverStore: function() { return libraryRouter.refresh() }
+            recoverAvailable: libraryRouter.shared
         }
 
         Menu {
@@ -207,12 +255,12 @@ PlasmoidItem {
             readonly property int snippetIndex: snippetModel.indexOfId(snippetId)
             MenuItem {
                 text: i18n("Edit")
-                enabled: actionsMenu.snippetIndex >= 0
+                enabled: actionsMenu.snippetIndex >= 0 && root.storeWritable
                 onTriggered: popupContent.showEditor(actionsMenu.snippetId)
             }
             MenuItem {
                 text: i18n("Duplicate")
-                enabled: actionsMenu.snippetIndex >= 0 && snippetModel.configurationValid
+                enabled: actionsMenu.snippetIndex >= 0 && root.storeWritable
                     && snippetModel.count < plasmoid.configuration.maxSnippets
                 onTriggered: {
                     var item = snippetModel.get(actionsMenu.snippetIndex)
@@ -223,10 +271,9 @@ PlasmoidItem {
             }
             MenuItem {
                 text: i18n("Delete")
-                enabled: actionsMenu.snippetIndex >= 0
+                enabled: actionsMenu.snippetIndex >= 0 && root.storeWritable
                 onTriggered: {
-                    deleteDialog.snippetId = actionsMenu.snippetId
-                    deleteDialog.open()
+                    deleteDialog.confirm(actionsMenu.snippetId)
                 }
             }
         }
@@ -237,17 +284,33 @@ PlasmoidItem {
             anchors.centerIn: parent
             width: Math.min(parent.width, Kirigami.Units.gridUnit * 22)
             property string snippetId: ""
+            // The record as the user saw it when asked to confirm.
+            property string confirmedFields: ""
+            property bool changedBeforeConfirmation: false
             title: i18n("Delete snippet?")
             modal: true
             standardButtons: Dialog.Ok | Dialog.Cancel
             contentItem: Label {
-                text: i18n("Delete the selected snippet? You can undo the deletion from the toolbar.")
+                text: deleteDialog.changedBeforeConfirmation
+                    ? i18n("This snippet changed in another widget. Delete the updated snippet? You can undo the deletion from the toolbar.")
+                    : i18n("Delete the selected snippet? You can undo the deletion from the toolbar.")
                 wrapMode: Text.Wrap
             }
+            function confirm(id, changed = false) {
+                var item = snippetModel.get(snippetModel.indexOfId(id))
+                if (!item)
+                    return
+                snippetId = id
+                confirmedFields = snippetModel.editableFields(item)
+                changedBeforeConfirmation = changed
+                open()
+            }
             onAccepted: {
-                var index = snippetModel.indexOfId(snippetId)
-                if (index >= 0)
-                    popupContent.lastDeletion = snippetModel.removeForUndo(index)
+                var result = snippetModel.removeConfirmed(snippetId, confirmedFields)
+                if (result.status === "ok")
+                    popupContent.lastDeletion = result.deletion
+                else if (result.status === "changed")
+                    Qt.callLater(confirm, snippetId, true)
             }
         }
 
@@ -259,6 +322,8 @@ PlasmoidItem {
             height: Math.min(implicitHeight, parent.height)
             processor: variableHandler
             onCopyRequested: function(snippetId, resolvedText) {
+                if (popupContent.templateGeneration !== popupContent.libraryGeneration)
+                    return
                 popupContent.copyResolvedSnippet(snippetId, resolvedText)
             }
         }
@@ -272,6 +337,24 @@ PlasmoidItem {
 
         Keys.forwardTo: [snippetList]
         focus: !plasmoid.configuration.showSearchField || !searchField.enabled
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.smallSpacing
+            objectName: "sharedLibraryStatus"
+            visible: libraryRouter.shared && libraryStatusText.message(libraryRouter.status) !== ""
+            type: libraryRouter.status === "conflict" || libraryRouter.status === "busy"
+                ? Kirigami.MessageType.Warning : Kirigami.MessageType.Error
+            text: libraryStatusText.message(libraryRouter.status)
+            actions: [
+                Kirigami.Action {
+                    icon.name: "view-refresh"
+                    text: i18n("Refresh")
+                    // Refresh rereads the file; it never overwrites it.
+                    onTriggered: libraryRouter.refresh()
+                }
+            ]
+        }
 
         Label {
             Layout.fillWidth: true
@@ -460,7 +543,7 @@ PlasmoidItem {
                             Accessible.name: i18n("Manage snippet")
                             ToolTip.text: Accessible.name
                             ToolTip.visible: hovered
-                            enabled: snippetModel.configurationValid
+                            enabled: root.storeWritable
                             onClicked: {
                                 closeController.cancelPending()
                                 actionsMenu.snippetId = modelData.id
@@ -533,7 +616,10 @@ PlasmoidItem {
 
                 Label {
                     Layout.leftMargin: Kirigami.Units.smallSpacing
-                    text: i18np("%1 snippet", "%1 snippets", snippetModel.count)
+                    text: libraryRouter.shared
+                        ? i18np("%1 snippet in “%2”", "%1 snippets in “%2”", snippetModel.count, libraryRouter.selectedLibrary)
+                        : i18np("%1 snippet", "%1 snippets", snippetModel.count)
+                    textFormat: Text.PlainText
                     opacity: 0.6
                 }
 
@@ -555,7 +641,7 @@ PlasmoidItem {
                     Accessible.name: i18n("Add Snippet")
                     ToolTip.text: Accessible.name
                     ToolTip.visible: hovered
-                    enabled: snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
+                    enabled: root.storeWritable && snippetModel.count < plasmoid.configuration.maxSnippets
                     onClicked: popupContent.showEditor("")
                 }
 
@@ -566,7 +652,7 @@ PlasmoidItem {
                     ToolTip.text: Accessible.name
                     ToolTip.visible: hovered
                     visible: popupContent.lastDeletion !== null
-                    enabled: visible && snippetModel.configurationValid && snippetModel.count < plasmoid.configuration.maxSnippets
+                    enabled: visible && root.storeWritable && snippetModel.count < plasmoid.configuration.maxSnippets
                     onClicked: {
                         if (snippetModel.undoRemoval(popupContent.lastDeletion))
                             popupContent.lastDeletion = null

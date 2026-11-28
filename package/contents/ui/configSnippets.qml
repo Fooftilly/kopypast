@@ -15,6 +15,20 @@ SimpleKCM {
 
     property string cfg_snippets: "[]"
     property string cfg_snippetsDefault: "[]"
+    property string cfg_sharedLibrary: ""
+    property string cfg_sharedLibraryDefault: ""
+
+    // Optional native module; ordinary local snippets work without it.
+    property var sharedLibraryBackend: null
+    Component.onCompleted: {
+        try {
+            sharedLibraryBackend = Qt.createQmlObject(
+                "import io.github.fooftilly.kopypast.fileio 1.0; SharedLibrary {}",
+                snippetsPage, "OptionalSharedLibrary")
+        } catch (error) {
+            sharedLibraryBackend = null
+        }
+    }
     property bool localStorageLimitReached: false
 
     Binding {
@@ -72,6 +86,19 @@ SimpleKCM {
 
     ColumnLayout {
         anchors.fill: parent
+
+        Local.SharedLibraryControls {
+            Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.smallSpacing
+            backend: snippetsPage.sharedLibraryBackend
+            selectedLibrary: snippetsPage.cfg_sharedLibrary
+            localRecords: snippetModel.snippets
+            localRecordsValid: snippetModel.configurationValid
+            dialogParent: snippetsPage
+            onSelectionRequested: function(name) {
+                snippetsPage.cfg_sharedLibrary = name
+            }
+        }
 
         Label {
             Layout.fillWidth: true
