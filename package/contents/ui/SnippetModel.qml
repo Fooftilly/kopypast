@@ -414,33 +414,65 @@ Item {
         return favorites.concat(others).map(function(record) { return record.item })
     }
 
+    // Some Qt versions split strings into UTF-16 units in Array.from.
+    function codePoints(text) {
+        var result = []
+        for (var i = 0; i < text.length; i++) {
+            var point = text.codePointAt(i)
+            result.push(String.fromCodePoint(point))
+            if (point > 0xffff)
+                i++
+        }
+        return result
+    }
+
     // Optimal string alignment distance, bounded at one edit: a single
-    // insertion, deletion, substitution or adjacent transposition.
-    function withinOneEdit(a, b) {
-        if (a === b)
-            return true
+    // insertion, deletion, substitution or adjacent transposition. Compares
+    // code points, so a supplementary character counts as one character.
+    function withinOneEdit(left, right) {
+        var a = Array.isArray(left) ? left : codePoints(left)
+        var b = Array.isArray(right) ? right : codePoints(right)
         var lengthDifference = a.length - b.length
         if (lengthDifference > 1 || lengthDifference < -1)
             return false
         var i = 0
         while (i < a.length && i < b.length && a[i] === b[i])
             i++
-        if (lengthDifference === 0) {
-            if (a.slice(i + 1) === b.slice(i + 1))
-                return true
-            return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2)
+        function same(x, y) {
+            if (a.length - x !== b.length - y)
+                return false
+            for (; x < a.length; x++, y++) {
+                if (a[x] !== b[y])
+                    return false
+            }
+            return true
         }
-        return lengthDifference > 0 ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1)
+        if (i === a.length && i === b.length)
+            return true
+        if (lengthDifference > 0)
+            return same(i + 1, i)
+        if (lengthDifference < 0)
+            return same(i, i + 1)
+        return same(i + 1, i + 1)
+            || (a[i] === b[i + 1] && a[i + 1] === b[i] && same(i + 2, i + 2))
     }
 
     // A query word of at least four characters tolerates one typo against a
-    // whole word, or against the start of a longer word while typing.
+    // whole word, or against the start of a longer word while typing (a
+    // prefix one character shorter, equal or longer than the query).
     function fuzzyWordMatch(word, tokens) {
-        if (Array.from(word).length < 4)
+        var query = codePoints(word)
+        if (query.length < 4)
             return false
         return tokens.some(function(token) {
-            return withinOneEdit(word, token)
-                || (token.length > word.length && withinOneEdit(word, token.slice(0, word.length)))
+            var characters = codePoints(token)
+            if (withinOneEdit(query, characters))
+                return true
+            for (var length = query.length - 1; length <= query.length + 1; length++) {
+                if (length < characters.length && withinOneEdit(query, characters.slice(0, length)))
+                    return true
+            }
+            return false
         })
     }
 

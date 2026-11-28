@@ -123,4 +123,19 @@ TestCase {
         compare(fuzzyIds("mergr"), ["a"])
         compare(fuzzyIds("日本話"), [])
     }
+
+    function test_fuzzyPrefixInsertionAndDeletion() {
+        store.loadFromConfig(JSON.stringify([
+            { id: "r", title: "Reviewing", text: "body" },
+            { id: "k", title: "野家東京", text: "body" }
+        ]))
+        compare(fuzzyIds("rview"), ["r"])
+        compare(fuzzyIds("revieew"), ["r"])
+        compare(fuzzyIds("reveiwi"), ["r"])
+        compare(fuzzyIds("rvw"), [])
+        // A supplementary character is one character, not two.
+        verify(store.withinOneEdit("𠮷野家東京", "野家東京"))
+        verify(store.withinOneEdit("野家東京", "野𠮷東京"))
+        compare(fuzzyIds("𠮷野家東京"), ["k"])
+    }
 }
