@@ -138,11 +138,18 @@ PlasmoidItem {
         id: popupContent
 
         property var lastDeletion: null
+        // Incremented on every library switch. A template opened for one
+        // library must not copy or record use in another.
+        property int libraryGeneration: 0
+        property int templateGeneration: -1
         // An undo record belongs to the store it was removed from.
         Connections {
             target: libraryRouter
             function onSelectedLibraryChanged() {
+                popupContent.libraryGeneration++
                 popupContent.lastDeletion = null
+                if (templateDialog.visible)
+                    templateDialog.reject()
                 if (editor.visible)
                     editor.storeReplaced = true
                 if (deleteDialog.visible)
@@ -193,6 +200,7 @@ PlasmoidItem {
             var names = variableHandler.placeholderNames(snippet.text)
             if (names.length > 0) {
                 closeController.cancelPending()
+                templateGeneration = libraryGeneration
                 templateDialog.openTemplate(snippet.id, snippet.text, names)
                 return
             }
@@ -314,6 +322,8 @@ PlasmoidItem {
             height: Math.min(implicitHeight, parent.height)
             processor: variableHandler
             onCopyRequested: function(snippetId, resolvedText) {
+                if (popupContent.templateGeneration !== popupContent.libraryGeneration)
+                    return
                 popupContent.copyResolvedSnippet(snippetId, resolvedText)
             }
         }
