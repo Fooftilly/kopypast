@@ -79,4 +79,48 @@ TestCase {
         ids("review")
         compare(store.configValue, before)
     }
+
+    function fuzzyIds(query, mode = 0) {
+        return store.getFilteredSnippets(mode, query, true).map(function(item) { return item.id })
+    }
+
+    function test_editDistance() {
+        verify(store.withinOneEdit("review", "review"))
+        verify(store.withinOneEdit("reveiw", "review"))
+        verify(store.withinOneEdit("reviw", "review"))
+        verify(store.withinOneEdit("reviews", "review"))
+        verify(store.withinOneEdit("rexiew", "review"))
+        verify(!store.withinOneEdit("rveiwe", "review"))
+        verify(!store.withinOneEdit("revi", "review"))
+    }
+
+    function test_fuzzyIsOptional() {
+        compare(ids("reveiw"), [])
+        compare(fuzzyIds("reveiw"), ["a", "c"])
+        compare(fuzzyIds("statsu"), ["b"])
+        compare(fuzzyIds("repositroy"), ["b"])
+        // Typing the start of a word with a typo.
+        compare(fuzzyIds("chekc"), ["b", "c"])
+    }
+
+    function test_fuzzyRanksExactFirst() {
+        store.loadFromConfig(JSON.stringify([
+            { id: "near", title: "Deploy", text: "body", favorite: true },
+            { id: "exact", title: "Deplyo notes", text: "body" }
+        ]))
+        compare(fuzzyIds("deplyo"), ["exact", "near"])
+        compare(ids("deplyo"), ["exact"])
+    }
+
+    function test_fuzzyNeedsEveryWordAndFourLetters() {
+        compare(fuzzyIds("gti"), [])
+        compare(fuzzyIds("git reveiw"), ["a"])
+        compare(fuzzyIds("reveiw unrelated"), [])
+        compare(fuzzyIds("čaša"), ["d", "e"])
+        compare(fuzzyIds("čaše"), ["d", "e"])
+        compare(fuzzyIds(".*"), [])
+        compare(fuzzyIds("merge,before"), [])
+        compare(fuzzyIds("mergr"), ["a"])
+        compare(fuzzyIds("日本話"), [])
+    }
 }

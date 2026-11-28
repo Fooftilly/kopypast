@@ -414,7 +414,37 @@ Item {
         return favorites.concat(others).map(function(record) { return record.item })
     }
 
-    function getFilteredSnippets(sortMode, query) {
+    // Optimal string alignment distance, bounded at one edit: a single
+    // insertion, deletion, substitution or adjacent transposition.
+    function withinOneEdit(a, b) {
+        if (a === b)
+            return true
+        var lengthDifference = a.length - b.length
+        if (lengthDifference > 1 || lengthDifference < -1)
+            return false
+        var i = 0
+        while (i < a.length && i < b.length && a[i] === b[i])
+            i++
+        if (lengthDifference === 0) {
+            if (a.slice(i + 1) === b.slice(i + 1))
+                return true
+            return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2)
+        }
+        return lengthDifference > 0 ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1)
+    }
+
+    // A query word of at least four characters tolerates one typo against a
+    // whole word, or against the start of a longer word while typing.
+    function fuzzyWordMatch(word, tokens) {
+        if (Array.from(word).length < 4)
+            return false
+        return tokens.some(function(token) {
+            return withinOneEdit(word, token)
+                || (token.length > word.length && withinOneEdit(word, token.slice(0, word.length)))
+        })
+    }
+
+    function getFilteredSnippets(sortMode, query, fuzzy = false) {
         var search = query.trim().normalize("NFC").toLowerCase()
         if (!search)
             return getSortedSnippets(sortMode)
@@ -422,19 +452,38 @@ Item {
         // All words must match, in any order, across title, body and metadata.
         // Normalize equivalent Unicode spellings without stripping accents.
         var words = search.split(/\s+/)
-        var matching = snippets.filter(function(snippet) {
+        var exact = []
+        var approximate = []
+        snippets.forEach(function(snippet) {
             var title = snippet.title.normalize("NFC").toLowerCase()
             var body = snippet.text.normalize("NFC").toLowerCase()
             var category = snippet.category.toLowerCase()
             var tags = snippet.tags.map(function(tag) { return tag.toLowerCase() })
-            return words.every(function(word) {
-                return title.includes(word) || body.includes(word) || category.includes(word)
-                    || tags.some(function(tag) { return tag.includes(word) })
+            var tokens = null
+            var approximated = false
+            var matched = words.every(function(word) {
+                if (title.includes(word) || body.includes(word) || category.includes(word)
+                        || tags.some(function(tag) { return tag.includes(word) }))
+                    return true
+                if (!fuzzy)
+                    return false
+                // Tokenize lazily: most records match exactly or not at all.
+                // Split on whitespace and ASCII, Latin-1 and general
+                // punctuation; Unicode property escapes are not portable
+                // across the Qt versions Plasma 6 ships.
+                if (tokens === null)
+                    tokens = [title, body, category].concat(tags).join(" ")
+                        .split(/[\s!-\/:-@\[-`{-~\u00a0-\u00bf\u2000-\u206f\u3000-\u303f]+/).filter(function(token) { return token !== "" })
+                approximated = fuzzyWordMatch(word, tokens)
+                return approximated
             })
+            if (matched)
+                (approximated ? approximate : exact).push(snippet)
         })
         // Filtering preserves manual order, which is the tie-breaker in
         // every sort mode. Sort only records that can actually be shown.
-        return sortRecords(matching, sortMode)
+        // Exact matches rank before typo-tolerant ones.
+        return sortRecords(exact, sortMode).concat(sortRecords(approximate, sortMode))
     }
 
     function restoreBackup(content, maxSnippets, preserveIdentity = false) {

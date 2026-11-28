@@ -23,6 +23,7 @@ SimpleKCM {
     property int cfg_sortMode: -1
     property alias cfg_useKbdNavigation: useKbdNavigation.checked
     property alias cfg_clearSearchOnCopy: clearSearchOnCopy.checked
+    property alias cfg_fuzzySearch: fuzzySearch.checked
     property alias cfg_handleVariables: handleVariables.checked
 
     readonly property bool isPanel: plasmoid.formFactor === 2 || plasmoid.formFactor === 3
@@ -321,6 +322,24 @@ SimpleKCM {
                     font: Kirigami.Theme.smallFont
                     opacity: 0.7
                     leftPadding: clearSearchOnCopy.indicator.width + clearSearchOnCopy.spacing
+                }
+            }
+
+            ColumnLayout {
+                Layout.leftMargin: Kirigami.Units.largeSpacing
+
+                CheckBox {
+                    id: fuzzySearch
+                    text: i18n("Tolerate typos in search")
+                }
+
+                Label {
+                    text: i18n("Also show snippets that differ by one letter from words of four or more letters, after exact matches")
+                    font: Kirigami.Theme.smallFont
+                    opacity: 0.7
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    leftPadding: fuzzySearch.indicator.width + fuzzySearch.spacing
                 }
             }
 
