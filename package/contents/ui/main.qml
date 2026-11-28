@@ -246,8 +246,8 @@ PlasmoidItem {
         Local.SnippetDialog {
             id: editor
             parent: popupContent
-            width: Math.min(parent.width, Kirigami.Units.gridUnit * 28)
-            height: Math.min(parent.height, Kirigami.Units.gridUnit * 30)
+            preferredWidth: Math.min(parent.width, Kirigami.Units.gridUnit * 28)
+            preferredHeight: Math.min(parent.height, Kirigami.Units.gridUnit * 30)
             store: snippetModel
             maximumSnippets: plasmoid.configuration.maxSnippets
             defaultTemplate: plasmoid.configuration.defaultTemplate
@@ -285,11 +285,10 @@ PlasmoidItem {
             }
         }
 
-        Dialog {
+        Local.FittedDialog {
             id: deleteDialog
             parent: popupContent
-            anchors.centerIn: parent
-            width: Math.min(parent.width, Kirigami.Units.gridUnit * 22)
+            preferredWidth: Math.min(parent.width, Kirigami.Units.gridUnit * 22)
             property string snippetId: ""
             // The record as the user saw it when asked to confirm.
             property string confirmedFields: ""
@@ -324,9 +323,8 @@ PlasmoidItem {
         Local.TemplateFieldsDialog {
             id: templateDialog
             parent: popupContent
-            anchors.centerIn: parent
-            width: Math.min(parent.width, Kirigami.Units.gridUnit * 28)
-            height: Math.min(implicitHeight, parent.height)
+            preferredWidth: Math.min(parent.width, Kirigami.Units.gridUnit * 28)
+            preferredHeight: Math.min(implicitHeight, parent.height)
             processor: variableHandler
             onCopyRequested: function(snippetId, resolvedText) {
                 if (popupContent.templateGeneration !== popupContent.libraryGeneration)
