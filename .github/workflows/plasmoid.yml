@@ -172,32 +172,3 @@ jobs:
           export QML_IMPORT_PATH="$RUNNER_TEMP/kopypast/lib/qt6/qml"
           export QML2_IMPORT_PATH="$QML_IMPORT_PATH"
           xvfb-run -a -s "-screen 0 1280x1024x24" dbus-run-session -- bash integration/popup-clipboard.sh build/native/clipboard_peer
-
-  diag-editor:
-    name: Diagnose editor geometry (${{ matrix.scale }})
-    runs-on: ubuntu-latest
-    container: archlinux:base
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        scale: ["1", "1.25"]
-    steps:
-      - name: Install
-        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth dbus perl imagemagick qqc2-desktop-style breeze plasma-integration
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Run
-        env:
-          QT_QPA_PLATFORM: xcb
-          QT_QUICK_BACKEND: software
-          QT_SCALE_FACTOR: ${{ matrix.scale }}
-          QT_QUICK_CONTROLS_STYLE: org.kde.desktop
-          QT_QPA_PLATFORMTHEME: kde
-        run: xvfb-run -a -s "-screen 0 1280x1024x24" dbus-run-session -- bash diag/editor.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: diag-${{ matrix.scale }}
-          path: diag-out
