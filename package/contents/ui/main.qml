@@ -353,7 +353,8 @@ PlasmoidItem {
             ListView {
                 id: snippetList
                 property var filteredModel: categoryFilter.applyTag(
-                    categoryFilter.apply(snippetModel.getFilteredSnippets(plasmoid.configuration.sortMode, root.searchQuery),
+                    categoryFilter.apply(snippetModel.getFilteredSnippets(plasmoid.configuration.sortMode, root.searchQuery,
+                            plasmoid.configuration.fuzzySearch),
                         popupContent.categoryKey), popupContent.tagKey)
 
                 model: filteredModel
