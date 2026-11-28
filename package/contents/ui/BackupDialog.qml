@@ -8,7 +8,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
-import org.kde.kirigami.private as KirigamiPrivate
 
 Dialog {
     id: dialog
@@ -44,6 +43,10 @@ Dialog {
     property string backupContent: store.configurationValid
         ? backupFormat.encode(store.snippets)
         : store.configValue
+
+    ClipboardWriter {
+        id: clipboardWriter
+    }
 
     BackupFormat {
         id: backupFormat
@@ -275,7 +278,8 @@ Dialog {
         ToolTip.delay: Kirigami.Units.toolTipDelay
 
         onClicked: {
-            KirigamiPrivate.CopyHelperPrivate.copyTextToClipboard(textArea.text)
+            if (!clipboardWriter.copyText(textArea.text))
+                return
             copied = true
             resetTimer.restart()
         }

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'native/**'
+      - 'package/contents/ui/ClipboardWriter.qml'
       - '.github/workflows/native-fileio.yml'
   workflow_dispatch:
 
@@ -39,6 +40,7 @@ jobs:
           cmake --install build/native --prefix "$RUNNER_TEMP/kopypast"
           export QML_IMPORT_PATH="$RUNNER_TEMP/kopypast/lib/qt6/qml"
           /usr/lib/qt6/bin/qmltestrunner -input native/integration/tst_backupfiledialog.qml
+          /usr/lib/qt6/bin/qmltestrunner -input native/integration/tst_clipboardwriter.qml
           rm -f native-test-backup-*.json
           export XDG_DATA_HOME="$(mktemp -d)"
           trap 'rm -rf "$XDG_DATA_HOME"' EXIT

@@ -8,7 +8,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
-import org.kde.kirigami.private as KirigamiPrivate
 import "." as Local
 
 PlasmoidItem {
@@ -54,6 +53,10 @@ PlasmoidItem {
             root.localStorageLimitReached = false
             plasmoid.configuration.snippets = localConfig
         }
+    }
+
+    Local.ClipboardWriter {
+        id: clipboardWriter
     }
 
     // The store the popup shows: local snippets, or the selected library.
@@ -212,7 +215,11 @@ PlasmoidItem {
             if (!snippetModel.configurationValid || snippetModel.indexOfId(snippetId) < 0)
                 return
 
-            KirigamiPrivate.CopyHelperPrivate.copyTextToClipboard(processedText)
+            // Count a use and close only after the text reached the clipboard.
+            if (!clipboardWriter.copyText(processedText)) {
+                console.warn("Kopypast: no clipboard helper is available")
+                return
+            }
             snippetModel.recordUse(snippetId)
 
             if (plasmoid.configuration.isPinned || !isPanel) {

@@ -140,3 +140,35 @@ jobs:
         run: |
           test -f /usr/share/plasma/plasmoids/org.kde.desktopcontainment/metadata.json
           xvfb-run -a dbus-run-session -- bash integration/smoke.sh
+
+  popup-native-clipboard:
+    name: Popup copy with native module (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [xcb, wayland]
+    steps:
+      - name: Install Plasma, build and compositor dependencies
+        run: pacman -Syu --noconfirm --needed git base-devel cmake ninja plasma-sdk plasma-desktop plasma-workspace qt6-wayland mesa ttf-dejavu xorg-server-xvfb xorg-xauth weston xdotool jq dbus perl
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build and install the native module
+        run: |
+          cmake -S native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build/native
+          cmake --install build/native --prefix "$RUNNER_TEMP/kopypast"
+
+      - name: Copy from the popup and read from another client
+        env:
+          QT_QPA_PLATFORM: ${{ matrix.platform }}
+          QT_QUICK_BACKEND: software
+        run: |
+          export QML_IMPORT_PATH="$RUNNER_TEMP/kopypast/lib/qt6/qml"
+          export QML2_IMPORT_PATH="$QML_IMPORT_PATH"
+          xvfb-run -a -s "-screen 0 1280x1024x24" dbus-run-session -- bash integration/popup-clipboard.sh build/native/clipboard_peer
