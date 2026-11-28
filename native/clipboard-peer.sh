@@ -48,7 +48,13 @@ wait_marker() {
         if grep -Fq "$marker" "$log"; then
             return 0
         fi
-        kill -0 "$pid"
+        if ! kill -0 "$pid" 2>/dev/null; then
+            # The process may print the marker and exit between the check
+            # above and this one. Its exit status is checked by the caller.
+            grep -Fq "$marker" "$log" && return 0
+            echo "Process exited before native clipboard marker: $marker"
+            return 1
+        fi
         if [[ "$input" == yes ]]; then
             DISPLAY="$output_display" xdotool mousemove 640 400 click 1
         fi
