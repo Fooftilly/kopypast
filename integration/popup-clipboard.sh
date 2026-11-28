@@ -54,15 +54,33 @@ case "$QT_QPA_PLATFORM" in
     *) exit 2 ;;
 esac
 
-# A click activates the window under the pointer; Return then copies the
-# selected snippet through the popup's keyboard path. The applet does not
-# fill plasmoidviewer's window, so a click alone may miss the list.
-click() {
-    DISPLAY="$output_display" xdotool mousemove 640 400 click 1 sleep 0.3 key Return
+# Real input for each step. On X11 the viewer window is not resized by a
+# window manager, so the popup is driven through its keyboard path: a click
+# activates the window and Return copies the selected snippet. Under Weston
+# the popup fills the output, so the first snippet is clicked with the mouse
+# at the position the popup reports. The peer reader only needs a click.
+send_input() {
+    local kind=$1 log=$2
+    case "$kind" in
+        peer)
+            DISPLAY="$output_display" xdotool mousemove 640 400 click 1
+            ;;
+        popup)
+            if [[ "$QT_QPA_PLATFORM" == wayland ]]; then
+                local target
+                target=$(grep -o 'KOPYPAST_POPUP_TARGET [0-9]* [0-9]*' "$log" | tail -n 1)
+                [[ -n "$target" ]] || return 0
+                set -- $target
+                DISPLAY="$output_display" xdotool mousemove "$2" "$3" click 1
+            else
+                DISPLAY="$output_display" xdotool mousemove 640 400 click 1 sleep 0.3 key Return
+            fi
+            ;;
+    esac
 }
 
-# Wait for a marker, sending a real click to the centre of the output each
-# second when requested. The process may print the marker and exit.
+# Wait for a marker, sending real input of the given kind (no, peer or
+# popup) each second. The process may print the marker and exit.
 wait_marker() {
     local pid=$1 log=$2 marker=$3 input=$4
     for attempt in {1..40}; do
@@ -72,7 +90,7 @@ wait_marker() {
             echo "Process exited before marker: $marker"
             return 1
         fi
-        [[ "$input" == yes ]] && click
+        [[ "$input" == no ]] || send_input "$input" "$log"
         sleep 1
     done
     echo "Missing marker: $marker"
@@ -95,11 +113,11 @@ start_viewer() {
     local seed
     seed=$(jq -cn --argjson s "$snippet" '[range(20) as $i | $s + {id: ("s" + ($i|tostring))}]')
     # Test-only probes in the disposable installed copy: seed snippets, go
-    # fullscreen, report the helper, and press OK in the template dialog
-    # (the copy still follows a real click).
+    # fullscreen, report the helper and first snippet position, and press OK
+    # in the template dialog (the copy still follows real input).
     SEED="$seed" perl -0pi -e '
         s/^    id: root\n/    id: root\n    Component.onCompleted: {\n        const seed = JSON.stringify($ENV{SEED});\n        if (typeof libraryRouter !== "undefined") libraryRouter.localConfig = seed; else snippetModel.loadFromConfig(seed);\n        clipboardWriter.load();\n        console.warn("KOPYPAST_POPUP_BACKEND " + clipboardWriter.backendName)\n    }\n/m;
-        s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Connections { target: templateDialog; function onOpened() { Qt.callLater(templateDialog.accept) } }\n        Timer { running: true; repeat: true; interval: 1000; onTriggered: { const w = popupContent.Window.window; const p = popupContent.mapToGlobal(0, 0); console.warn("KOPYPAST_POPUP_STATE active=" + (w ? w.active : "none") + " visibility=" + (w ? w.visibility : "") + " window=" + (w ? w.width + "x" + w.height : "") + " content=" + Math.round(p.x) + "," + Math.round(p.y) + " " + Math.round(popupContent.width) + "x" + Math.round(popupContent.height) + " listFocus=" + snippetList.activeFocus + " searchFocus=" + searchField.activeFocus + " current=" + snippetList.currentIndex + " count=" + snippetList.count) } }\n        TapHandler { gesturePolicy: TapHandler.DragThreshold; onTapped: console.warn("KOPYPAST_POPUP_TAPPED") }\n        Keys.onPressed: function(event) { console.warn("KOPYPAST_POPUP_KEY " + event.key); event.accepted = false }\n        Timer { running: true; interval: 500; onTriggered: { popupContent.Window.window.showFullScreen(); plasmoid.configuration.useKbdNavigation = true; snippetList.currentIndex = 0; snippetList.forceActiveFocus(); console.warn("KOPYPAST_POPUP_READY") } }\n/m;
+        s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Connections { target: templateDialog; function onOpened() { Qt.callLater(templateDialog.accept) } }\n        Timer { running: true; repeat: true; interval: 1000; onTriggered: { const d = snippetList.itemAtIndex(0); if (d) { const g = d.mapToGlobal(d.width \/ 2, d.height \/ 2); console.warn("KOPYPAST_POPUP_TARGET " + Math.round(g.x) + " " + Math.round(g.y)) } } }\n        Timer { running: true; interval: 500; onTriggered: { popupContent.Window.window.showFullScreen(); plasmoid.configuration.useKbdNavigation = true; snippetList.currentIndex = 0; snippetList.forceActiveFocus(); console.warn("KOPYPAST_POPUP_READY") } }\n/m;
         s/^(            snippetModel\.recordUse\(snippetId\)\n)/$1            console.warn("KOPYPAST_POPUP_COPIED")\n/m;
     ' "$main"
     grep -Fq KOPYPAST_POPUP_BACKEND "$main"
@@ -112,7 +130,7 @@ start_viewer() {
     wait_marker "$viewer" "$sandbox/viewer-$name.log" KOPYPAST_POPUP_READY no
     grep -Fq "KOPYPAST_POPUP_BACKEND native" "$sandbox/viewer-$name.log"
     sleep 2
-    wait_marker "$viewer" "$sandbox/viewer-$name.log" KOPYPAST_POPUP_COPIED yes
+    wait_marker "$viewer" "$sandbox/viewer-$name.log" KOPYPAST_POPUP_COPIED popup
 }
 
 read_clipboard() {
@@ -121,7 +139,7 @@ read_clipboard() {
     local reader=$!
     if [[ "$QT_QPA_PLATFORM" == wayland ]]; then
         wait_marker "$reader" "$sandbox/reader-$kind.log" KOPYPAST_NATIVE_READER_WAITING no
-        wait_marker "$reader" "$sandbox/reader-$kind.log" KOPYPAST_NATIVE_READER_READY yes
+        wait_marker "$reader" "$sandbox/reader-$kind.log" KOPYPAST_NATIVE_READER_READY peer
     fi
     wait "$reader"
     grep -Fq KOPYPAST_NATIVE_TRANSFER_OK "$sandbox/reader-$kind.log"
