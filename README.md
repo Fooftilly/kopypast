@@ -24,7 +24,7 @@ To migrate from the original widget, use **Snippets → Backup** there, then **S
 
 ## Optional file backups
 
-Clipboard backup and restore work without extra installation. To enable direct JSON file import/export, build and install the optional native Qt module. On Arch Linux, install `base-devel`, `cmake`, `ninja` and `qt6-declarative` first:
+Clipboard backup and restore work without extra installation. To enable direct JSON file import/export and copying through the public Qt clipboard API, build and install the optional native Qt module. On Arch Linux, install `base-devel`, `cmake`, `ninja` and `qt6-declarative` first:
 
 ```sh
 cmake -S native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
