@@ -95,7 +95,7 @@ start_viewer() {
     # fullscreen, report the helper, and press OK in the template dialog
     # (the copy still follows a real click).
     SEED="$seed" perl -0pi -e '
-        s/^    id: root\n/    id: root\n    Component.onCompleted: {\n        const seed = JSON.stringify($ENV{SEED});\n        if (typeof libraryRouter !== "undefined") libraryRouter.localConfig = seed; else snippetModel.loadFromConfig(seed);\n        console.warn("KOPYPAST_POPUP_BACKEND " + clipboardWriter.backendName)\n    }\n/m;
+        s/^    id: root\n/    id: root\n    Component.onCompleted: {\n        const seed = JSON.stringify($ENV{SEED});\n        if (typeof libraryRouter !== "undefined") libraryRouter.localConfig = seed; else snippetModel.loadFromConfig(seed);\n        clipboardWriter.load();\n        console.warn("KOPYPAST_POPUP_BACKEND " + clipboardWriter.backendName)\n    }\n/m;
         s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Connections { target: templateDialog; function onOpened() { Qt.callLater(templateDialog.accept) } }\n        Timer { running: true; interval: 500; onTriggered: { popupContent.Window.window.showFullScreen(); console.warn("KOPYPAST_POPUP_READY") } }\n/m;
         s/^(            snippetModel\.recordUse\(snippetId\)\n)/$1            console.warn("KOPYPAST_POPUP_COPIED")\n/m;
     ' "$main"
