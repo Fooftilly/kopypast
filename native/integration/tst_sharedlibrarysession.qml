@@ -28,6 +28,29 @@ TestCase {
     Local.LibraryStorageRouter { id: routerB; backend: backendB }
     Local.LibraryStorageRouter { id: unavailableRouter }
     SharedLibrary { id: sharedBackend }
+    Local.LibrarySelection {
+        id: settingsSelection
+        backend: backendA
+        localRecords: [{id:"x", title:"From settings", text:"body", category:"", tags:[]}]
+    }
+    Local.LibrarySelection { id: otherSelection; backend: backendB }
+
+    function test_settingsCreateAndJoin() {
+        // The settings page creates a library file, then another widget
+        // joins it; the widget router opens it by the saved name.
+        const name = test.libraryId + "-settings"
+        verify(settingsSelection.createLibrary(name))
+        verify(!settingsSelection.createLibrary(name))
+        compare(settingsSelection.errorStatus, "exists")
+        verify(otherSelection.joinLibrary(name))
+        verify(!otherSelection.joinLibrary(name + "-absent"))
+        compare(otherSelection.errorStatus, "missing")
+        routerB.leaveLibrary()
+        verify(routerB.restoreSelection(name))
+        compare(routerB.activeStore.get(0).title, "From settings")
+        verify(routerB.writable)
+        routerB.leaveLibrary()
+    }
     Local.LibraryStorageRouter { id: routerC; backend: sharedBackend }
     Local.LibraryStorageRouter { id: routerD; backend: sharedBackend }
 
