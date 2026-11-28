@@ -141,7 +141,15 @@ PlasmoidItem {
         // An undo record belongs to the store it was removed from.
         Connections {
             target: libraryRouter
-            function onSelectedLibraryChanged() { popupContent.lastDeletion = null }
+            function onSelectedLibraryChanged() {
+                popupContent.lastDeletion = null
+                if (editor.visible)
+                    editor.storeReplaced = true
+                if (deleteDialog.visible)
+                    deleteDialog.reject()
+                if (actionsMenu.visible)
+                    actionsMenu.close()
+            }
         }
         readonly property bool managing: editor.visible || deleteDialog.visible || actionsMenu.visible
         property string categoryKey: ""
@@ -229,6 +237,8 @@ PlasmoidItem {
             maximumSnippets: plasmoid.configuration.maxSnippets
             defaultTemplate: plasmoid.configuration.defaultTemplate
             processVariables: plasmoid.configuration.handleVariables
+            recoverStore: function() { return libraryRouter.refresh() }
+            recoverAvailable: libraryRouter.shared
         }
 
         Menu {
@@ -255,8 +265,7 @@ PlasmoidItem {
                 text: i18n("Delete")
                 enabled: actionsMenu.snippetIndex >= 0 && root.storeWritable
                 onTriggered: {
-                    deleteDialog.snippetId = actionsMenu.snippetId
-                    deleteDialog.open()
+                    deleteDialog.confirm(actionsMenu.snippetId)
                 }
             }
         }
@@ -267,17 +276,33 @@ PlasmoidItem {
             anchors.centerIn: parent
             width: Math.min(parent.width, Kirigami.Units.gridUnit * 22)
             property string snippetId: ""
+            // The record as the user saw it when asked to confirm.
+            property string confirmedFields: ""
+            property bool changedBeforeConfirmation: false
             title: i18n("Delete snippet?")
             modal: true
             standardButtons: Dialog.Ok | Dialog.Cancel
             contentItem: Label {
-                text: i18n("Delete the selected snippet? You can undo the deletion from the toolbar.")
+                text: deleteDialog.changedBeforeConfirmation
+                    ? i18n("This snippet changed in another widget. Delete the updated snippet? You can undo the deletion from the toolbar.")
+                    : i18n("Delete the selected snippet? You can undo the deletion from the toolbar.")
                 wrapMode: Text.Wrap
             }
+            function confirm(id, changed = false) {
+                var item = snippetModel.get(snippetModel.indexOfId(id))
+                if (!item)
+                    return
+                snippetId = id
+                confirmedFields = snippetModel.editableFields(item)
+                changedBeforeConfirmation = changed
+                open()
+            }
             onAccepted: {
-                var index = snippetModel.indexOfId(snippetId)
-                if (index >= 0)
-                    popupContent.lastDeletion = snippetModel.removeForUndo(index)
+                var result = snippetModel.removeConfirmed(snippetId, confirmedFields)
+                if (result.status === "ok")
+                    popupContent.lastDeletion = result.deletion
+                else if (result.status === "changed")
+                    Qt.callLater(confirm, snippetId, true)
             }
         }
 

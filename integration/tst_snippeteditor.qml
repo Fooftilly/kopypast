@@ -27,7 +27,16 @@ Item {
         store: store
         maximumSnippets: 2
         defaultTemplate: "template text"
+        // Simulates rereading a shared library after a failed save.
+        recoverStore: function() {
+            fixture.recoveries++
+            fixture.permitWrites = true
+            return true
+        }
+        recoverAvailable: fixture.recoverAvailable
     }
+    property int recoveries: 0
+    property bool recoverAvailable: false
 
     TestCase {
         name: "SnippetEditorLifecycle"
@@ -35,6 +44,8 @@ Item {
 
         function init() {
             fixture.permitWrites = true
+            fixture.recoveries = 0
+            fixture.recoverAvailable = false
             store.loadFromConfig('[{"id":"a","title":"One","text":"body","favorite":true,"category":"Work","tags":["Git"]}]')
         }
 
@@ -42,6 +53,59 @@ Item {
             const button = findChild(editor.footer, "saveSnippetButton")
             verify(button !== null)
             return button
+        }
+
+        function test_libraryChangeBlocksDraft() {
+            editor.createSnippet()
+            tryCompare(editor, "opened", true)
+            editor.titleText = "Local draft"
+            verify(saveButton().enabled)
+            editor.storeReplaced = true
+            verify(!saveButton().enabled)
+            verify(!editor.submit())
+            verify(editor.visible)
+            compare(editor.titleText, "Local draft")
+            compare(store.count, 1)
+            editor.reject()
+            tryCompare(editor, "visible", false)
+            editor.createSnippet()
+            tryCompare(editor, "opened", true)
+            verify(!editor.storeReplaced)
+            editor.reject()
+            tryCompare(editor, "visible", false)
+        }
+
+        function test_recoverAfterFailedSaveKeepsDraft() {
+            fixture.recoverAvailable = true
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            editor.titleText = "Retry draft"
+            fixture.permitWrites = false
+            mouseClick(saveButton())
+            verify(editor.saveFailed)
+            const recover = findChild(editor, "recoverStoreButton")
+            verify(recover !== null)
+            verify(recover.visible)
+            mouseClick(recover)
+            compare(fixture.recoveries, 1)
+            verify(!editor.saveFailed)
+            compare(editor.titleText, "Retry draft")
+            mouseClick(saveButton())
+            tryCompare(editor, "visible", false)
+            compare(store.get(0).title, "Retry draft")
+        }
+
+        function test_recoverHiddenWithoutSharedLibrary() {
+            editor.editSnippet(0)
+            tryCompare(editor, "opened", true)
+            fixture.permitWrites = false
+            mouseClick(saveButton())
+            verify(editor.saveFailed)
+            verify(!findChild(editor, "recoverStoreButton").visible)
+            verify(!editor.recover())
+            compare(fixture.recoveries, 0)
+            editor.reject()
+            tryCompare(editor, "visible", false)
         }
 
         function test_failedWriteKeepsDraft() {
