@@ -15,7 +15,7 @@ s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Ti
 ' "$main"
 grep -c DIAG "$main"
 XDG_DATA_HOME="$home/data" XDG_CONFIG_HOME="$home/config" XDG_CACHE_HOME="$home/cache" \
-    timeout 25 plasmoidviewer -a io.github.fooftilly.kopypast -f horizontal -l bottomedge >"$out/viewer.log" 2>&1
-grep -E 'DIAG|qml:|Error|error' "$out/viewer.log" | head -80
+    timeout 25 env | grep -E "^QT_" ; timeout 25 plasmoidviewer -a io.github.fooftilly.kopypast -f horizontal -l bottomedge >"$out/viewer.log" 2>&1
+grep -E "DIAG|qml:|Error|error|style|Style" "$out/viewer.log" | head -80
 import -window root "$out/root.png" 2>/dev/null || true
 ls -la "$out"

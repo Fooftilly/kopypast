@@ -184,7 +184,7 @@ jobs:
         scale: ["1", "1.25"]
     steps:
       - name: Install
-        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth dbus perl imagemagick qqc2-desktop-style breeze
+        run: pacman -Syu --noconfirm --needed git plasma-sdk plasma-desktop plasma-workspace mesa ttf-dejavu xorg-server-xvfb xorg-xauth dbus perl imagemagick qqc2-desktop-style breeze plasma-integration
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -194,7 +194,7 @@ jobs:
           QT_QUICK_BACKEND: software
           QT_SCALE_FACTOR: ${{ matrix.scale }}
           QT_QUICK_CONTROLS_STYLE: org.kde.desktop
-          QT_STYLE_OVERRIDE: Breeze
+          QT_QPA_PLATFORMTHEME: kde
         run: xvfb-run -a -s "-screen 0 1280x1024x24" dbus-run-session -- bash diag/editor.sh
       - uses: actions/upload-artifact@v4
         if: always()
