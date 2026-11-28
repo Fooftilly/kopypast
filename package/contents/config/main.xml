@@ -12,6 +12,10 @@
         <entry name="snippets" type="String">
             <default>[]</default>
         </entry>
+        <!-- Opt-in shared library ID; empty keeps per-widget snippets. -->
+        <entry name="sharedLibrary" type="String">
+            <default></default>
+        </entry>
     </group>
     <group name="General">
         <entry name="useSymbolicIcon" type="Bool">
@@ -50,6 +54,9 @@
         </entry>
         <entry name="clearSearchOnCopy" type="Bool">
             <default>true</default>
+        </entry>
+        <entry name="fuzzySearch" type="Bool">
+            <default>false</default>
         </entry>
         <entry name="handleVariables" type="Bool">
             <default>true</default>

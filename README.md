@@ -24,7 +24,7 @@ To migrate from the original widget, use **Snippets → Backup** there, then **S
 
 ## Optional file backups
 
-Clipboard backup and restore work without extra installation. To enable direct JSON file import/export and copying through the public Qt clipboard API, build and install the optional native Qt module. On Arch Linux, install `base-devel`, `cmake`, `ninja` and `qt6-declarative` first:
+Clipboard backup and restore work without extra installation. To enable direct JSON file import/export, shared snippet libraries and copying through the public Qt clipboard API, build and install the optional native Qt module. On Arch Linux, install `base-devel`, `cmake`, `ninja` and `qt6-declarative` first:
 
 ```sh
 cmake -S native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
@@ -34,6 +34,14 @@ sudo cmake --install build/native --prefix /usr
 
 The default module destination on Arch is `/usr/lib/qt6/qml/io/github/fooftilly/kopypast/fileio`. For other Qt installations, set `KOPYPAST_QML_INSTALL_DIR` to the appropriate QML import root at configure time. Restart Plasma Shell after installing the module. Open **Configure Kopypast → Snippets → Backup/Restore** to use the file buttons. Restore loads the file into the existing preview/input and applies the same validation only after you accept. Save requires explicit confirmation to replace an existing file. Files are limited to 16 MiB. Backups contain plaintext; keep them private. Rebuild the module after incompatible Qt upgrades.
 
+## Shared snippet libraries
+
+With the optional native module installed (see above), several Kopypast widgets can use one snippet library, for example a panel widget on each screen. Open **Configure Kopypast → Snippets → Share…**, enter a library name (lowercase letters, digits, `-` or `_`), and either **Create from these snippets** or **Join existing**, then apply the settings. Each widget keeps its own snippets unchanged; they return when you choose **Stop sharing**.
+
+Add, edit and delete shared snippets from the popup. Changes made in one widget appear in the others automatically. If two widgets save at the same time, the later save is refused instead of overwriting the other change; use **Refresh** in the popup and try again. If the module is missing or the library file is unreadable, the popup explains the problem and blocks changes rather than saving to the widget's own snippets.
+
+Libraries are stored as versioned backup files in `~/.local/share/io.github.fooftilly.kopypast/libraries/`. They contain plaintext; keep them private.
+
 ## Keyboard shortcuts
 
 For a panel instance, right-click Kopypast, open **Configure Kopypast → Keyboard Shortcuts**, and assign a shortcut. Plasma registers the shortcut for that widget instance and handles conflicts. No default key combination is reserved.
@@ -41,6 +49,12 @@ For a panel instance, right-click Kopypast, open **Configure Kopypast → Keyboa
 The shortcut toggles the popup. With the search bar enabled, opening the popup focuses search when snippets are available. Enable **General → Keyboard navigation** to select results with Up/Down and copy with Enter. The panel icon can also be focused with Tab and activated with Space or Enter.
 
 If several instances are installed, assign a different shortcut to each instance. Test from another application to confirm that Plasma grants focus to the popup.
+
+## Search
+
+Search matches every word you type, in any order, against snippet titles, text, categories and tags. Case and equivalent Unicode spellings are ignored; accents are not. Results keep the selected sort order, with favorites first.
+
+Enable **General → Tolerate typos in search** to also show snippets where a word of four or more letters differs by one letter, a missing or extra letter, or two swapped letters, including while you are still typing a longer word. These approximate matches appear after all exact matches and are not highlighted.
 
 ## Template fields
 

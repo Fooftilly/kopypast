@@ -32,6 +32,35 @@ TestCase {
     }
 
     Local.LibraryStorageRouter { id: router; backend: fake }
+    Local.LibraryStorageRouter {
+        id: widgetRouter
+        enforceLocalConfigBudget: true
+    }
+    SignalSpy { id: budget; target: widgetRouter; signalName: "localConfigBudgetRejected" }
+
+    function test_localBudgetIsForwarded() {
+        widgetRouter.restoreSelection("")
+        widgetRouter.localConfig = "[]"
+        budget.clear()
+        verify(!widgetRouter.activeStore.append({title:"Large", text:"\\".repeat(600000)}))
+        compare(budget.count, 1)
+        compare(widgetRouter.localConfig, "[]")
+    }
+
+    function test_savedSelectionWithoutBackendBlocksWrites() {
+        // A saved shared selection must not fall back to local writes when
+        // the optional module is missing.
+        widgetRouter.localConfig = '[{"id":"l","title":"Local","text":"body"}]'
+        verify(!widgetRouter.restoreSelection("team"))
+        verify(widgetRouter.shared)
+        verify(!widgetRouter.writable)
+        compare(widgetRouter.status, "unavailable")
+        verify(!widgetRouter.activeStore.append({title:"New", text:"body"}))
+        compare(widgetRouter.localConfig, '[{"id":"l","title":"Local","text":"body"}]')
+        verify(widgetRouter.restoreSelection(""))
+        verify(widgetRouter.writable)
+        compare(widgetRouter.activeStore.get(0).title, "Local")
+    }
 
     function init() {
         router.leaveLibrary()

@@ -229,6 +229,25 @@ Item {
         return remove(index) ? deletion : null
     }
 
+    // Fields a user sees when confirming an edit or deletion. Usage
+    // counters, favorites and ordering are not part of that decision.
+    function editableFields(item) {
+        return JSON.stringify([item.title, item.text, item.category, item.tags])
+    }
+
+    // Delete only the record the user confirmed. If another widget changed
+    // or removed it meanwhile, nothing is removed and a new confirmation is
+    // needed. Returns {status: "ok"|"changed"|"missing"|"failed", deletion}.
+    function removeConfirmed(id, confirmedFields) {
+        var index = indexOfId(id)
+        if (index < 0)
+            return { status: "missing", deletion: null }
+        if (editableFields(snippets[index]) !== confirmedFields)
+            return { status: "changed", deletion: null }
+        var deletion = removeForUndo(index)
+        return { status: deletion ? "ok" : "failed", deletion: deletion }
+    }
+
     function undoRemoval(deletion) {
         if (!configurationValid || !deletion || deletion.undone)
             return false
@@ -414,7 +433,69 @@ Item {
         return favorites.concat(others).map(function(record) { return record.item })
     }
 
-    function getFilteredSnippets(sortMode, query) {
+    // Some Qt versions split strings into UTF-16 units in Array.from.
+    function codePoints(text) {
+        var result = []
+        for (var i = 0; i < text.length; i++) {
+            var point = text.codePointAt(i)
+            result.push(String.fromCodePoint(point))
+            if (point > 0xffff)
+                i++
+        }
+        return result
+    }
+
+    // Optimal string alignment distance, bounded at one edit: a single
+    // insertion, deletion, substitution or adjacent transposition. Compares
+    // code points, so a supplementary character counts as one character.
+    function withinOneEdit(left, right) {
+        var a = Array.isArray(left) ? left : codePoints(left)
+        var b = Array.isArray(right) ? right : codePoints(right)
+        var lengthDifference = a.length - b.length
+        if (lengthDifference > 1 || lengthDifference < -1)
+            return false
+        var i = 0
+        while (i < a.length && i < b.length && a[i] === b[i])
+            i++
+        function same(x, y) {
+            if (a.length - x !== b.length - y)
+                return false
+            for (; x < a.length; x++, y++) {
+                if (a[x] !== b[y])
+                    return false
+            }
+            return true
+        }
+        if (i === a.length && i === b.length)
+            return true
+        if (lengthDifference > 0)
+            return same(i + 1, i)
+        if (lengthDifference < 0)
+            return same(i, i + 1)
+        return same(i + 1, i + 1)
+            || (a[i] === b[i + 1] && a[i + 1] === b[i] && same(i + 2, i + 2))
+    }
+
+    // A query word of at least four characters tolerates one typo against a
+    // whole word, or against the start of a longer word while typing (a
+    // prefix one character shorter, equal or longer than the query).
+    function fuzzyWordMatch(word, tokens) {
+        var query = codePoints(word)
+        if (query.length < 4)
+            return false
+        return tokens.some(function(token) {
+            var characters = codePoints(token)
+            if (withinOneEdit(query, characters))
+                return true
+            for (var length = query.length - 1; length <= query.length + 1; length++) {
+                if (length < characters.length && withinOneEdit(query, characters.slice(0, length)))
+                    return true
+            }
+            return false
+        })
+    }
+
+    function getFilteredSnippets(sortMode, query, fuzzy = false) {
         var search = query.trim().normalize("NFC").toLowerCase()
         if (!search)
             return getSortedSnippets(sortMode)
@@ -422,19 +503,38 @@ Item {
         // All words must match, in any order, across title, body and metadata.
         // Normalize equivalent Unicode spellings without stripping accents.
         var words = search.split(/\s+/)
-        var matching = snippets.filter(function(snippet) {
+        var exact = []
+        var approximate = []
+        snippets.forEach(function(snippet) {
             var title = snippet.title.normalize("NFC").toLowerCase()
             var body = snippet.text.normalize("NFC").toLowerCase()
             var category = snippet.category.toLowerCase()
             var tags = snippet.tags.map(function(tag) { return tag.toLowerCase() })
-            return words.every(function(word) {
-                return title.includes(word) || body.includes(word) || category.includes(word)
-                    || tags.some(function(tag) { return tag.includes(word) })
+            var tokens = null
+            var approximated = false
+            var matched = words.every(function(word) {
+                if (title.includes(word) || body.includes(word) || category.includes(word)
+                        || tags.some(function(tag) { return tag.includes(word) }))
+                    return true
+                if (!fuzzy)
+                    return false
+                // Tokenize lazily: most records match exactly or not at all.
+                // Split on whitespace and ASCII, Latin-1 and general
+                // punctuation; Unicode property escapes are not portable
+                // across the Qt versions Plasma 6 ships.
+                if (tokens === null)
+                    tokens = [title, body, category].concat(tags).join(" ")
+                        .split(/[\s!-\/:-@\[-`{-~\u00a0-\u00bf\u2000-\u206f\u3000-\u303f]+/).filter(function(token) { return token !== "" })
+                approximated = fuzzyWordMatch(word, tokens)
+                return approximated
             })
+            if (matched)
+                (approximated ? approximate : exact).push(snippet)
         })
         // Filtering preserves manual order, which is the tie-breaker in
         // every sort mode. Sort only records that can actually be shown.
-        return sortRecords(matching, sortMode)
+        // Exact matches rank before typo-tolerant ones.
+        return sortRecords(exact, sortMode).concat(sortRecords(approximate, sortMode))
     }
 
     function restoreBackup(content, maxSnippets, preserveIdentity = false) {

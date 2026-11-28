@@ -26,8 +26,17 @@ Dialog {
     function editableFields(item) {
         // Only compare fields this editor can change. Usage counters,
         // favorites and reordering must not invalidate an otherwise safe edit.
-        return JSON.stringify([item.title, item.text, item.category, item.tags])
+        return store.editableFields(item)
     }
+
+    // Set by the owner when the widget switches to another library while the
+    // editor is open. The draft stays visible but can no longer be saved into
+    // a library the user did not open it for.
+    property bool storeReplaced: false
+    // Optional owner callback that rereads storage after a failed save, for
+    // example a shared library conflict. Returns true on success.
+    property var recoverStore: null
+    property bool recoverAvailable: recoverStore !== null
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
@@ -51,7 +60,7 @@ Dialog {
         }
     }
 
-    property bool isValid: store.configurationValid && titleField.text !== "" && textArea.text !== ""
+    property bool isValid: store.configurationValid && !storeReplaced && titleField.text !== "" && textArea.text !== ""
         && (editId === "" ? store.count < maximumSnippets : !editConflict)
     property alias titleText: titleField.text
     property alias snippetText: textArea.text
@@ -78,6 +87,7 @@ Dialog {
         if (!store.configurationValid || store.count >= maximumSnippets)
             return
         editId = ""
+        storeReplaced = false
         originalEditableFields = ""
         titleText = ""
         categoryField.text = ""
@@ -90,6 +100,7 @@ Dialog {
         var item = store.get(index)
         if (!store.configurationValid || !item)
             return
+        storeReplaced = false
         originalEditableFields = editableFields(item)
         editId = item.id
         titleText = item.title
@@ -97,6 +108,15 @@ Dialog {
         tagsField.text = item.tags.join(", ")
         snippetText = item.text
         open()
+    }
+
+    // Reload storage without discarding the draft. A changed target then
+    // shows as an edit conflict instead of being overwritten.
+    function recover() {
+        if (!recoverAvailable || recoverStore === null || !recoverStore())
+            return false
+        saveFailed = false
+        return true
     }
 
     function submit() {
@@ -133,6 +153,22 @@ Dialog {
             text: i18n("This snippet changed or was removed while editing. Copy your draft if needed, then cancel and reopen the snippet.")
             wrapMode: Text.WordWrap
             color: Kirigami.Theme.negativeTextColor
+        }
+
+        Label {
+            Layout.fillWidth: true
+            visible: dialog.storeReplaced
+            text: i18n("The widget switched to another snippet library while this editor was open. Copy your draft if needed, then cancel.")
+            wrapMode: Text.WordWrap
+            color: Kirigami.Theme.negativeTextColor
+        }
+
+        Button {
+            objectName: "recoverStoreButton"
+            visible: dialog.saveFailed && dialog.recoverAvailable && !dialog.storeReplaced
+            icon.name: "view-refresh"
+            text: i18n("Reload library, keep draft")
+            onClicked: dialog.recover()
         }
 
         Label {
