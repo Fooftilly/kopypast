@@ -8,7 +8,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-Dialog {
+FittedDialog {
     id: dialog
     title: i18n("Fill template fields")
     modal: true

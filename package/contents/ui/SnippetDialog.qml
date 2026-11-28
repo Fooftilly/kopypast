@@ -8,7 +8,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-Dialog {
+FittedDialog {
     id: dialog
     required property var store
     required property int maximumSnippets
@@ -37,9 +37,6 @@ Dialog {
     // example a shared library conflict. Returns true on success.
     property var recoverStore: null
     property bool recoverAvailable: recoverStore !== null
-
-    x: Math.round((parent.width - width) / 2)
-    y: Math.round((parent.height - height) / 2)
 
     title: editId === "" ? i18n("Add Snippet") : i18n("Edit Snippet")
     modal: true

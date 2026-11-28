@@ -16,7 +16,18 @@ s/^(        Component\.onCompleted: Qt\.callLater\(focusOnOpen\)\n)/$1        Ti
 grep -c DIAG "$main"
 env | grep -E "^QT_"
 XDG_DATA_HOME="$home/data" XDG_CONFIG_HOME="$home/config" XDG_CACHE_HOME="$home/cache" \
-    timeout 25 plasmoidviewer -a io.github.fooftilly.kopypast -f horizontal -l bottomedge >"$out/viewer.log" 2>&1
+    plasmoidviewer -a io.github.fooftilly.kopypast -f horizontal -l bottomedge >"$out/viewer.log" 2>&1 &
+viewer=$!
+status=1
+for _ in $(seq 1 60); do
+    if grep -q "DIAG footer padding" "$out/viewer.log"; then
+        import -window root "$out/root.png" && status=0
+        break
+    fi
+    kill -0 "$viewer" 2>/dev/null || break
+    sleep 0.5
+done
+kill "$viewer" 2>/dev/null; wait "$viewer" 2>/dev/null
 grep -E "DIAG|qml:|Error|error|style|Style" "$out/viewer.log" | head -80
-import -window root "$out/root.png" 2>/dev/null || true
 ls -la "$out"
+[[ $status == 0 && -s "$out/root.png" ]] || { echo "Missing editor geometry marker or screenshot"; exit 1; }
