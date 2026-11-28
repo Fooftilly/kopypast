@@ -10,6 +10,9 @@ import org.kde.kirigami as Kirigami
 Dialog {
     id: dialog
     required property var store
+    // False when changes are written to storage at once, as for a shared
+    // library, rather than kept until the widget settings are applied.
+    property bool saveOnApply: true
     title: i18n("Manage categories and tags")
     modal: true
     standardButtons: Dialog.Close
@@ -53,8 +56,11 @@ Dialog {
         }
         Label {
             Layout.fillWidth: true
+            objectName: "metadataPersistenceNote"
             wrapMode: Text.Wrap
-            text: i18n("Changes affect all snippets with the selected name. Removing a group keeps its snippets. Apply the widget settings to save.")
+            text: dialog.saveOnApply
+                ? i18n("Changes affect all snippets with the selected name. Removing a group keeps its snippets. Apply the widget settings to save.")
+                : i18n("Changes affect all snippets with the selected name. Removing a group keeps its snippets. Changes are saved to the shared library immediately.")
         }
         RowLayout {
             Button {
