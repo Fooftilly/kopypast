@@ -83,9 +83,10 @@ ColumnLayout {
 
     Kirigami.InlineMessage {
         Layout.fillWidth: true
+        objectName: "sharedModeNotice"
         visible: controls.shared
         type: Kirigami.MessageType.Information
-        text: i18n("This widget shows the shared library. Add, edit and delete its snippets from the popup. The list below holds this widget's own snippets, which return when you stop sharing. Apply the settings to switch.")
+        text: i18n("Apply the settings to make this widget use the shared library. This widget's own snippets are kept and return when you stop sharing.")
     }
 
     Kirigami.InlineMessage {

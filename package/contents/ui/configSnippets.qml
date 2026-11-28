@@ -60,6 +60,7 @@ SimpleKCM {
             cfg_snippets = localConfig
         }
         onSelectedLibraryChanged: {
+            snippetsPage.libraryGeneration++
             if (snippetDialog.visible)
                 snippetDialog.storeReplaced = true
             if (metadataDialog.visible)
@@ -72,6 +73,9 @@ SimpleKCM {
     }
 
     readonly property var snippetModel: libraryRouter.activeStore
+    // Incremented on every library switch. One shared model serves every
+    // library, so an undo must also belong to the same selection.
+    property int libraryGeneration: 0
     readonly property bool storeWritable: libraryRouter.writable
 
     Local.LibraryStatusText {
@@ -102,6 +106,7 @@ SimpleKCM {
     function deleteSnippet(index) {
         // Undo restores into the store the snippet was removed from.
         var store = snippetModel
+        var generation = libraryGeneration
         var deletion = store.removeForUndo(index)
         if (!deletion)
             return
@@ -112,7 +117,7 @@ SimpleKCM {
 
         applicationWindow().showPassiveNotification(
             i18n("Snippet \"%1\" deleted", title), 5000, i18n("Undo"), function() {
-                if (store === snippetsPage.snippetModel)
+                if (store === snippetsPage.snippetModel && generation === snippetsPage.libraryGeneration)
                     store.undoRemoval(deletion)
             }
         )
@@ -395,6 +400,7 @@ SimpleKCM {
         anchors.centerIn: parent
         width: Math.min(snippetsPage.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 28)
         store: snippetModel
+        saveOnApply: !libraryRouter.shared
     }
 
     SnippetDialog {

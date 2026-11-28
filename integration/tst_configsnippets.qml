@@ -20,8 +20,14 @@ Item {
     function i18np(singular, plural, count, arg) {
         return (count === 1 ? singular : plural).replace("%1", String(count)).replace("%2", String(arg))
     }
+    // The last notification action, such as Undo.
+    property var lastAction: null
     function applicationWindow() {
-        return { showPassiveNotification: function() {} }
+        return {
+            showPassiveNotification: function(message, timeout, actionText, action) {
+                fixture.lastAction = typeof action === "function" ? action : null
+            }
+        }
     }
     readonly property QtObject plasmoid: QtObject {
         readonly property QtObject configuration: QtObject {
@@ -82,6 +88,8 @@ Item {
             fake.files = {}
             fake.revisions = 0
             fake.create("team", fake.encode([{id:"s1", title:"Shared", text:"one"}]))
+            fake.create("other", fake.encode([{id:"o1", title:"Other", text:"two"}]))
+            fixture.lastAction = null
             loader.active = true
             tryVerify(function() { return loader.status === Loader.Ready })
             const page = loader.item
@@ -93,8 +101,8 @@ Item {
             loader.active = false
         }
 
-        function sharedTitles() {
-            return JSON.parse(fake.files["team"].text).snippets.map(function(record) { return record.title })
+        function sharedTitles(name) {
+            return JSON.parse(fake.files[name || "team"].text).snippets.map(function(record) { return record.title })
         }
 
         function test_localSnippetsByDefault() {
@@ -145,6 +153,40 @@ Item {
             verify(page.snippetModel.append({title:"After refresh", text:"y"}))
             compare(sharedTitles(), ["From other widget", "After refresh"])
             compare(page.cfg_snippets, localSnippets)
+        }
+
+        function test_undoStaysInItsLibrary() {
+            const page = loader.item
+            page.cfg_sharedLibrary = "team"
+            page.deleteSnippet(0)
+            compare(sharedTitles("team"), [])
+            verify(fixture.lastAction !== null)
+            // Both libraries use the same shared model object.
+            page.cfg_sharedLibrary = ""
+            page.cfg_sharedLibrary = "other"
+            fixture.lastAction()
+            compare(sharedTitles("other"), ["Other"])
+            compare(sharedTitles("team"), [])
+
+            // Undo still works in the library it came from.
+            page.deleteSnippet(0)
+            compare(sharedTitles("other"), [])
+            fixture.lastAction()
+            compare(sharedTitles("other"), ["Other"])
+        }
+
+        function test_noticesMatchPersistence() {
+            const page = loader.item
+            const metadata = findChild(page, "metadataPersistenceNote")
+            verify(metadata.text.indexOf("Apply the widget settings to save") >= 0)
+            verify(!findChild(page, "sharedModeNotice").visible)
+            page.cfg_sharedLibrary = "team"
+            verify(metadata.text.indexOf("saved to the shared library immediately") >= 0)
+            const notice = findChild(page, "sharedModeNotice")
+            tryCompare(notice, "visible", true)
+            verify(notice.text.indexOf("from the popup") < 0)
+            page.cfg_sharedLibrary = ""
+            verify(metadata.text.indexOf("Apply the widget settings to save") >= 0)
         }
 
         function test_unavailableLibraryBlocksWrites() {
